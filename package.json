@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@aws-sdk/client-ecr-public": "^3.693.0"
+  }
+}
