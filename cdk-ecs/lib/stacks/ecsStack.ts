@@ -3,6 +3,9 @@ import {Stack, StackProps, CfnOutput} from "aws-cdk-lib";
 import { Construct } from 'constructs';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import {NetworkStack} from "./networkStack";
+import {IamRolesStack} from "./iamRolesStack";
+import {ServiceDiscoveryStack} from "./servicediscoveryStack";
 
 interface EcsClusterStackProps extends StackProps{
     readonly vpc: ec2.Vpc;
