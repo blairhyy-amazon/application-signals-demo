@@ -5,12 +5,14 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 export class IamRolesStack extends Stack {
     private readonly ECS_TASK_ROLE_NAME = "ecs-pet-clinic-task-role";
     private readonly ECS_TASK_EXECUTION_ROLE_NAME = "ecs-pet-clinic-task-execution-role";
+    public readonly ecsTaskRole: iam.Role;
+    public readonly ecsTaskExecutionRole: iam.Role;
 
     constructor(scope: Construct, id: string, props?: StackProps) {
         super(scope, id, props);
 
         // Create IAM Roles for ECS Task
-        const ecsTaskRole = new iam.Role(this, 'EcsTaskRole', {
+        this.ecsTaskRole = new iam.Role(this, 'EcsTaskRole', {
             roleName: this.ECS_TASK_ROLE_NAME,
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
         });
@@ -29,11 +31,11 @@ export class IamRolesStack extends Stack {
         ]
 
         taskRolePolicies.forEach(policy => {
-            ecsTaskRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName(policy));
+            this.ecsTaskRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName(policy));
         });
 
         // Create IAM Roles for ECS Task Execution
-        const ecsTaskExecutionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
+        this.ecsTaskExecutionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
             roleName: this.ECS_TASK_EXECUTION_ROLE_NAME,
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com')
         });
@@ -44,10 +46,10 @@ export class IamRolesStack extends Stack {
         ]
 
         taskExecutionRolePolicies.forEach(policy => {
-            ecsTaskExecutionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName(policy));
+            this.ecsTaskExecutionRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName(policy));
         });
 
-        new CfnOutput(this, 'TaskRoleArn', {value: ecsTaskRole.roleArn});
-        new CfnOutput(this, 'TaskExecutionRoleArn', {value: ecsTaskExecutionRole.roleArn});
+        new CfnOutput(this, 'TaskRoleArn', {value: this.ecsTaskRole.roleArn});
+        new CfnOutput(this, 'TaskExecutionRoleArn', {value: this.ecsTaskExecutionRole.roleArn});
     }
 }
