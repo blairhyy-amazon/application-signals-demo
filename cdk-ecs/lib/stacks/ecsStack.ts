@@ -4,9 +4,9 @@ import { Construct } from 'constructs';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from "aws-cdk-lib/aws-iam";
-import * as servicediscovery from "aws-cdk-lib/aws-servicediscovery";
 
-import {LogGroup} from "aws-cdk-lib/aws-logs";
+import {ServiceDiscoveryStack} from "./servicediscoveryStack";
+import {LogStack} from "./logStack";
 
 interface EcsClusterStackProps extends StackProps{
     readonly vpc: ec2.Vpc;
@@ -15,12 +15,13 @@ interface EcsClusterStackProps extends StackProps{
     readonly ecsTaskExecutionRole: iam.Role;
     readonly subnets: ec2.ISubnet[];
     readonly ecrImagePrefix: string;
+    readonly serviceDiscoveryStack: ServiceDiscoveryStack;
+    readonly logStack: LogStack;
 }
 
 interface CreateServiceProps {
     readonly serviceName: string;
     readonly taskDefinition: ecs.TaskDefinition;
-    readonly DNSService: servicediscovery.Service;
 }
 
 export class EcsClusterStack extends Stack {
@@ -30,6 +31,8 @@ export class EcsClusterStack extends Stack {
     private readonly ecsTaskExecutionRole: iam.Role;
     private readonly subnets: ec2.ISubnet[];
     private readonly ecrImagePrefix: string;
+    private readonly serviceDiscoveryStack: ServiceDiscoveryStack;
+    private readonly logStack: LogStack;
     private CLUSTER_NAME = 'ecs-pet-clinic-demo';
 
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
@@ -45,11 +48,17 @@ export class EcsClusterStack extends Stack {
         this.ecsTaskExecutionRole = props.ecsTaskExecutionRole;
         this.subnets = props.subnets;
         this.ecrImagePrefix = props.ecrImagePrefix;
+        this.serviceDiscoveryStack = props.serviceDiscoveryStack;
+        this.logStack = props.logStack;
 
         new CfnOutput(this, 'EcsClusterArn', {value: this.cluster.clusterArn});
     }
 
     createService(props: CreateServiceProps){
+        // 1. create service discovery service
+        const DNSService = this.serviceDiscoveryStack.createService(props.serviceName);
+
+        // 2, create ECS service
         const ecsService = new ecs.FargateService(this, `${props.serviceName}-ecs-service`, {
             serviceName: props.serviceName,
             taskDefinition: props.taskDefinition,
@@ -62,16 +71,20 @@ export class EcsClusterStack extends Stack {
         });
 
         ecsService.associateCloudMapService({
-            service: props.DNSService
+            service: DNSService
         })
 
         new CfnOutput(this, 'ecsService', {value: ecsService.serviceName})
         console.log(`Ecs Service - ${props.serviceName} is created`)
     }
 
-    createConfigTaskDefinition(logGroup: LogGroup){
+    createConfigServer(){
         const CONFIG_SERVER = 'pet-clinic-config-server';
 
+        // Create a log group
+        const configLogGroup = this.logStack.createLogGroup(CONFIG_SERVER)
+
+        // Create ECS task definition
         const taskDefinition = new ecs.TaskDefinition(this, `${CONFIG_SERVER}-task`, {
             cpu: '256',
             memoryMiB:  '512',
@@ -93,7 +106,7 @@ export class EcsClusterStack extends Stack {
             },
             logging: ecs.LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
-                logGroup: logGroup,
+                logGroup: configLogGroup,
             })
         });
 
@@ -103,6 +116,10 @@ export class EcsClusterStack extends Stack {
             protocol: ecs.Protocol.TCP
         });
 
-        return taskDefinition;
+        // Create ECS service
+        this.createService({
+            serviceName: CONFIG_SERVER,
+            taskDefinition: taskDefinition
+        })
     }
 }

@@ -35,15 +35,7 @@ class ApplicationSignalsECSDemo {
     }
 
     private createServers() {
-        const CONFIG_SERVER = 'pet-clinic-config-server';
-        const configDNSService = this.serviceDiscoveryStack.createService(CONFIG_SERVER);
-        const configLogGroup = this.logStack.createLogGroup(CONFIG_SERVER)
-        const configTaskDefinition = this.ecsClusterStack.createConfigTaskDefinition(configLogGroup);
-        this.ecsClusterStack.createService({
-            serviceName: CONFIG_SERVER,
-            taskDefinition: configTaskDefinition,
-            DNSService: configDNSService,
-        });
+        this.ecsClusterStack.createConfigServer();
     }
 
     private createStacks(): void {
@@ -63,6 +55,8 @@ class ApplicationSignalsECSDemo {
             ecsTaskExecutionRole: iamRolesStack.ecsTaskExecutionRole,
             subnets: networkStack.vpc.publicSubnets,
             ecrImagePrefix: this.ecrImagePrefix,
+            serviceDiscoveryStack: this.serviceDiscoveryStack,
+            logStack: this.logStack
         });
     }
 }
