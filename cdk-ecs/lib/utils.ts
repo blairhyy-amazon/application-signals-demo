@@ -1,23 +1,27 @@
-import * as assert from 'assert';
-import { ECRPUBLICClient, DescribeRepositoriesCommand } from "@aws-sdk/client-ecr-public";
+import * as assert from "assert";
+import {
+  ECRPUBLICClient,
+  DescribeRepositoriesCommand,
+} from "@aws-sdk/client-ecr-public";
 
 async function getECRImagePrefix(region: string): Promise<string> {
-    // TODO: use ECRClient instead of ECRPublicClient
-    const client = new ECRPUBLICClient({ region: region });
-    const command = new DescribeRepositoriesCommand({
-        repositoryNames: ["traffic-generator"]
-    });
+  // TODO: use ECRClient instead of ECRPublicClient
+  const client = new ECRPUBLICClient({ region: region });
+  const command = new DescribeRepositoriesCommand({
+    repositoryNames: ["traffic-generator"],
+  });
 
-    const response = await client.send(command);
+  const response = await client.send(command);
 
-    try {
-        const repositoryUri = response.repositories && response.repositories[0]?.repositoryUri;
-        assert (repositoryUri, "Repository URI is undefined");
-        // Extract URI prefix
-        return repositoryUri.split('/').slice(0, 2).join('/');
-    } catch (error) {
-        throw error;
-    }
+  try {
+    const repositoryUri =
+      response.repositories && response.repositories[0]?.repositoryUri;
+    assert(repositoryUri, "Repository URI is undefined");
+    // Extract URI prefix
+    return repositoryUri.split("/").slice(0, 2).join("/");
+  } catch (error) {
+    throw error;
+  }
 }
 
 // // Test
