@@ -35,6 +35,7 @@ export class EcsClusterStack extends Stack {
     private readonly CLUSTER_NAME = 'ecs-pet-clinic-demo';
     private readonly CONFIG_SERVER = 'pet-clinic-config-server';
     private readonly DISCOVERY_SERVER = 'pet-clinic-discovery-server';
+    private readonly ADMIN_SERVER = 'pet-clinic-admin-server';
 
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
         super(scope, id, props);
@@ -75,7 +76,7 @@ export class EcsClusterStack extends Stack {
             service: DNSService
         })
 
-        new CfnOutput(this, 'ecsService', {value: ecsService.serviceName})
+        new CfnOutput(this, `ecsService-${props.serviceName}`, {value: ecsService.serviceName})
         console.log(`Ecs Service - ${props.serviceName} is created`)
     }
 
@@ -162,6 +163,52 @@ export class EcsClusterStack extends Stack {
         // Create ECS service
         this.createService({
             serviceName: this.DISCOVERY_SERVER,
+            taskDefinition: taskDefinition
+        })
+    }
+
+    createAdminServer(){
+        // Create a log group
+        const adminLogGroup = this.logStack.createLogGroup(this.ADMIN_SERVER)
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.ADMIN_SERVER}-task`, {
+            cpu: '256',
+            memoryMiB:  '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.ADMIN_SERVER,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole
+        });
+
+        // Add Container to Task Definition
+        const container = taskDefinition.addContainer( `${this.ADMIN_SERVER}-container`, {
+            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-admin-server`),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                'SPRING_PROFILES_ACTIVE': 'ecs',
+                'CONFIG_SERVER_URL': `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
+                'DISCOVERY_SERVER_URL': `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
+                'ADMIN_IP': `${this.ADMIN_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: adminLogGroup,
+            })
+        });
+
+        // Add Port Mapping
+        container.addPortMappings({
+            containerPort: 9090,
+            protocol: ecs.Protocol.TCP
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: this.ADMIN_SERVER,
             taskDefinition: taskDefinition
         })
     }

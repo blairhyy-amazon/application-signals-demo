@@ -55,6 +55,11 @@ export class NetworkStack extends Stack {
             'Allow Discovery Server traffic within security group'
         );
 
+        securityGroup.connections.allowInternally(
+            ec2.Port.tcp(9090),
+            'Allow Admin Server traffic within security group'
+        );
+
         return securityGroup
     }
 }

@@ -37,6 +37,7 @@ class ApplicationSignalsECSDemo {
     private createServers() {
         this.ecsClusterStack.createConfigServer();
         this.ecsClusterStack.createDiscoveryServer();
+        this.ecsClusterStack.createAdminServer();
     }
 
     private createStacks(): void {
