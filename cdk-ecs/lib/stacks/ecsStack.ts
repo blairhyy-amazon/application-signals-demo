@@ -33,7 +33,9 @@ export class EcsClusterStack extends Stack {
     private readonly ecrImagePrefix: string;
     private readonly serviceDiscoveryStack: ServiceDiscoveryStack;
     private readonly logStack: LogStack;
-    private CLUSTER_NAME = 'ecs-pet-clinic-demo';
+    private readonly CLUSTER_NAME = 'ecs-pet-clinic-demo';
+    private readonly CONFIG_SERVER = 'pet-clinic-config-server';
+    private readonly DISCOVERY_SERVER = 'pet-clinic-discovery-server';
 
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
         super(scope, id, props);
@@ -79,24 +81,22 @@ export class EcsClusterStack extends Stack {
     }
 
     createConfigServer(){
-        const CONFIG_SERVER = 'pet-clinic-config-server';
-
         // Create a log group
-        const configLogGroup = this.logStack.createLogGroup(CONFIG_SERVER)
+        const configLogGroup = this.logStack.createLogGroup(this.CONFIG_SERVER)
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${CONFIG_SERVER}-task`, {
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.CONFIG_SERVER}-task`, {
             cpu: '256',
             memoryMiB:  '512',
             compatibility: ecs.Compatibility.FARGATE,
-            family: CONFIG_SERVER,
+            family: this.CONFIG_SERVER,
             networkMode: ecs.NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole
         });
 
         // Add Container to Task Definition
-        const container = taskDefinition.addContainer( `${CONFIG_SERVER}-container`, {
+        const container = taskDefinition.addContainer( `${this.CONFIG_SERVER}-container`, {
             image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-config-server`),
             cpu: 256,
             memoryLimitMiB: 512,
@@ -118,7 +118,51 @@ export class EcsClusterStack extends Stack {
 
         // Create ECS service
         this.createService({
-            serviceName: CONFIG_SERVER,
+            serviceName: this.CONFIG_SERVER,
+            taskDefinition: taskDefinition
+        })
+    }
+
+    createDiscoveryServer(){
+        // Create a log group
+        const discoveryLogGroup = this.logStack.createLogGroup(this.DISCOVERY_SERVER)
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.DISCOVERY_SERVER}-task`, {
+            cpu: '256',
+            memoryMiB:  '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.DISCOVERY_SERVER,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole
+        });
+
+        // Add Container to Task Definition
+        const container = taskDefinition.addContainer( `${this.DISCOVERY_SERVER}-container`, {
+            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-discovery-server`),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                'SPRING_PROFILES_ACTIVE': 'ecs',
+                'CONFIG_SERVER_URL': `https://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: discoveryLogGroup,
+            })
+        });
+
+        // Add Port Mapping
+        container.addPortMappings({
+            containerPort: 8761,
+            protocol: ecs.Protocol.TCP
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: this.DISCOVERY_SERVER,
             taskDefinition: taskDefinition
         })
     }

@@ -36,17 +36,17 @@ class ApplicationSignalsECSDemo {
 
     private createServers() {
         this.ecsClusterStack.createConfigServer();
+        this.ecsClusterStack.createDiscoveryServer();
     }
 
     private createStacks(): void {
         const networkStack = new NetworkStack(this.app, 'NetworkStack');
+        this.logStack = new LogStack(this.app, 'LogStack');
         const iamRolesStack = new IamRolesStack(this.app, 'IamRolesStack');
 
         this.serviceDiscoveryStack = new ServiceDiscoveryStack(this.app, 'ServiceDiscoveryStack', {
             vpc: networkStack.vpc,
         });
-
-        this.logStack = new LogStack(this.app, 'LogStack');
 
         this.ecsClusterStack = new EcsClusterStack(this.app, 'EcsClusterStack', {
             vpc: networkStack.vpc,

@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import { ECRPUBLICClient, DescribeRepositoriesCommand } from "@aws-sdk/client-ecr-public";
 
 async function getECRImagePrefix(region: string): Promise<string> {
+    // TODO: use ECRClient instead of ECRPublicClient
     const client = new ECRPUBLICClient({ region: region });
     const command = new DescribeRepositoriesCommand({
         repositoryNames: ["traffic-generator"]
