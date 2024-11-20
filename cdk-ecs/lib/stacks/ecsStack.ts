@@ -1,6 +1,5 @@
-
-import {Stack, StackProps, CfnOutput} from "aws-cdk-lib";
-import { Construct } from 'constructs';
+import {CfnOutput, Stack, StackProps} from "aws-cdk-lib";
+import {Construct} from 'constructs';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -78,6 +77,8 @@ export class EcsClusterStack extends Stack {
 
         new CfnOutput(this, 'ecsService', {value: ecsService.serviceName})
         console.log(`Ecs Service - ${props.serviceName} is created`)
+
+        return ecsService;
     }
 
     createConfigServer(){
@@ -121,6 +122,8 @@ export class EcsClusterStack extends Stack {
             serviceName: this.CONFIG_SERVER,
             taskDefinition: taskDefinition
         })
+
+        return container;
     }
 
     createDiscoveryServer(){
@@ -146,13 +149,15 @@ export class EcsClusterStack extends Stack {
             essential: true,
             environment: {
                 'SPRING_PROFILES_ACTIVE': 'ecs',
-                'CONFIG_SERVER_URL': `https://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`
+                'CONFIG_SERVER_URL': `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`
             },
             logging: ecs.LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: discoveryLogGroup,
             })
         });
+
+        // container.addContainerDependencies({container: configContainer, condition: ContainerDependencyCondition.SUCCESS});
 
         // Add Port Mapping
         container.addPortMappings({
@@ -161,9 +166,11 @@ export class EcsClusterStack extends Stack {
         });
 
         // Create ECS service
-        this.createService({
+        const discoveryService = this.createService({
             serviceName: this.DISCOVERY_SERVER,
             taskDefinition: taskDefinition
         })
+
+        // discoveryService.node.addDependency()
     }
 }

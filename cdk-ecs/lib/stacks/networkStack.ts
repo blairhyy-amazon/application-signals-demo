@@ -41,8 +41,19 @@ export class NetworkStack extends Stack {
         // Authorize ingress from Port 80
         securityGroup.addIngressRule(
             ec2.Peer.anyIpv4(),
-            ec2.Port.tcp(80)
-        )
+            ec2.Port.tcp(80),
+            'Allow HTTP traffic'
+        );
+
+        securityGroup.connections.allowInternally(
+            ec2.Port.tcp(8888),
+            'Allow Config Server traffic within security group'
+        );
+
+        securityGroup.connections.allowInternally(
+            ec2.Port.tcp(8761),
+            'Allow Discovery Server traffic within security group'
+        );
 
         return securityGroup
     }
