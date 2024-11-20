@@ -77,8 +77,6 @@ export class EcsClusterStack extends Stack {
 
         new CfnOutput(this, 'ecsService', {value: ecsService.serviceName})
         console.log(`Ecs Service - ${props.serviceName} is created`)
-
-        return ecsService;
     }
 
     createConfigServer(){
@@ -122,8 +120,6 @@ export class EcsClusterStack extends Stack {
             serviceName: this.CONFIG_SERVER,
             taskDefinition: taskDefinition
         })
-
-        return container;
     }
 
     createDiscoveryServer(){
@@ -157,8 +153,6 @@ export class EcsClusterStack extends Stack {
             })
         });
 
-        // container.addContainerDependencies({container: configContainer, condition: ContainerDependencyCondition.SUCCESS});
-
         // Add Port Mapping
         container.addPortMappings({
             containerPort: 8761,
@@ -166,11 +160,9 @@ export class EcsClusterStack extends Stack {
         });
 
         // Create ECS service
-        const discoveryService = this.createService({
+        this.createService({
             serviceName: this.DISCOVERY_SERVER,
             taskDefinition: taskDefinition
         })
-
-        // discoveryService.node.addDependency()
     }
 }
