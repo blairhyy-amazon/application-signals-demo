@@ -27,27 +27,24 @@ class ApplicationSignalsECSDemo {
 
     public async runApp(): Promise<void> {
         const ECR_REGION = 'us-east-1';
-        try {
-            const [ecrImagePrefix, adotJavaImageTag] = await Promise.all([
-                getECRImagePrefix(ECR_REGION),
-                getLatestAdotJavaTag(),
-            ]);
+        const [ecrImagePrefix, adotJavaImageTag] = await Promise.all([
+            getECRImagePrefix(ECR_REGION),
+            getLatestAdotJavaTag(),
+        ]);
 
-            assert(ecrImagePrefix !== '', 'ECR Image Prefix is empty');
-            assert(adotJavaImageTag !== '', 'ADOT Java Image Tag is empty');
+        assert(ecrImagePrefix !== '', 'ECR Image Prefix is empty');
+        assert(adotJavaImageTag !== '', 'ADOT Java Image Tag is empty');
 
-            this.ecrImagePrefix = ecrImagePrefix;
-            this.adotJavaImageTag = adotJavaImageTag;
-            console.log(this.adotJavaImageTag);
+        this.ecrImagePrefix = ecrImagePrefix;
+        this.adotJavaImageTag = adotJavaImageTag;
+        console.log(this.adotJavaImageTag);
 
-            // Execute synchronous operations
-            this.createStacks();
-            this.createServers();
-            this.createApiGateway();
-            this.app.synth();
-        } catch (error) {
-            throw error;
-        }
+        // Execute synchronous operations
+        this.createStacks();
+        this.createServers();
+        this.createApiGateway();
+        this.runServices();
+        this.app.synth();
     }
 
     private createStacks(): void {
@@ -89,6 +86,12 @@ class ApplicationSignalsECSDemo {
             this.loadbalancerStack.loadBalancer.loadBalancerDnsName,
             this.adotJavaImageTag,
         );
+    }
+
+    private runServices() {
+        this.ecsClusterStack.runVetsService(this.adotJavaImageTag);
+        this.ecsClusterStack.runCustomersService(this.adotJavaImageTag);
+        this.ecsClusterStack.runVisitsService(this.adotJavaImageTag);
     }
 }
 

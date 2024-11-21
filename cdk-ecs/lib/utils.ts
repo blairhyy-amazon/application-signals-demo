@@ -9,38 +9,24 @@ async function getECRImagePrefix(region: string): Promise<string> {
     });
 
     const response = await client.send(command);
+    const repositoryUri = response.repositories && response.repositories[0]?.repositoryUri;
+    assert(repositoryUri, 'Repository URI is undefined');
 
-    try {
-        const repositoryUri = response.repositories && response.repositories[0]?.repositoryUri;
-        assert(repositoryUri, 'Repository URI is undefined');
-        // Extract URI prefix
-        return repositoryUri.split('/').slice(0, 2).join('/');
-    } catch (error) {
-        throw error;
-    }
+    // Extract URI prefix
+    return repositoryUri.split('/').slice(0, 2).join('/');
 }
 
 async function getLatestAdotJavaTag(): Promise<string> {
-    try {
-        const response = await fetch(
-            'https://github.com/aws-observability/aws-otel-java-instrumentation/releases/latest',
-            { method: 'HEAD', redirect: 'follow' },
-        );
+    const response = await fetch('https://github.com/aws-observability/aws-otel-java-instrumentation/releases/latest', {
+        method: 'HEAD',
+        redirect: 'follow',
+    });
 
-        // Get the final URL after redirects
-        const finalUrl = response.url;
+    // Get the final URL after redirects
+    const finalUrl = response.url;
 
-        // Extract the tag from the URL
-        return finalUrl.split('/').pop() || '';
-    } catch (error) {
-        console.error('Error fetching latest ADOT Java tag:', error);
-        throw error;
-    }
+    // Extract the tag from the URL
+    return finalUrl.split('/').pop() || '';
 }
-
-// // Test
-// getECRImagePrefix("us-east-1")
-//     .then((prefix) => {console.log(prefix)})
-//     .catch((err) => console.error("Error:", err))
 
 export { getECRImagePrefix, getLatestAdotJavaTag };

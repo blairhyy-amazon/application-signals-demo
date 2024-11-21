@@ -9,7 +9,7 @@ export class LogStack extends Stack {
 
     public createLogGroup(serviceName: string) {
         return new LogGroup(this, `${serviceName}-log-group`, {
-            logGroupName: `/ecs/pet-clinic-${serviceName}`,
+            logGroupName: `/ecs/${serviceName}`,
             removalPolicy: RemovalPolicy.DESTROY,
         });
     }
