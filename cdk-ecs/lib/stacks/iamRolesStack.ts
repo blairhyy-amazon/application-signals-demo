@@ -7,6 +7,7 @@ export class IamRolesStack extends Stack {
     private readonly ECS_TASK_EXECUTION_ROLE_NAME = 'ecs-pet-clinic-task-execution-role';
     public readonly ecsTaskRole: iam.Role;
     public readonly ecsTaskExecutionRole: iam.Role;
+    public readonly databaseAccessRole: iam.Role;
 
     constructor(scope: Construct, id: string, props?: StackProps) {
         super(scope, id, props);

@@ -8,6 +8,7 @@ import { NetworkStack } from './stacks/networkStack';
 import { ServiceDiscoveryStack } from './stacks/servicediscoveryStack';
 import { LogStack } from './stacks/logStack';
 import { LoadBalancerStack } from './stacks/loadbalancerStack';
+import { RdsDatabaseStack } from './stacks/databaseStack';
 
 class ApplicationSignalsECSDemo {
     private readonly app: cdk.App;
@@ -54,7 +55,7 @@ class ApplicationSignalsECSDemo {
 
         this.loadbalancerStack = new LoadBalancerStack(this.app, 'LoadBalancerStack', {
             vpc: networkStack.vpc,
-            securityGroup: networkStack.securityGroup,
+            securityGroup: networkStack.ecsSecurityGroup,
         });
 
         const iamRolesStack = new IamRolesStack(this.app, 'IamRolesStack');
@@ -63,9 +64,15 @@ class ApplicationSignalsECSDemo {
             vpc: networkStack.vpc,
         });
 
+        const rdsDatabaseStack = new RdsDatabaseStack(this.app, 'RdsDatabaseStack', {
+            vpc: networkStack.vpc,
+            rdsSecurityGroup: networkStack.rdsSecurityGroup,
+            ecsTaskRole: iamRolesStack.ecsTaskRole,
+        });
+
         this.ecsClusterStack = new EcsClusterStack(this.app, 'EcsClusterStack', {
             vpc: networkStack.vpc,
-            securityGroups: [networkStack.securityGroup],
+            securityGroups: [networkStack.ecsSecurityGroup],
             ecsTaskRole: iamRolesStack.ecsTaskRole,
             ecsTaskExecutionRole: iamRolesStack.ecsTaskExecutionRole,
             subnets: networkStack.vpc.publicSubnets,

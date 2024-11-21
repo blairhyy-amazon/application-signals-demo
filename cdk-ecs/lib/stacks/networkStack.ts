@@ -4,9 +4,10 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
 export class NetworkStack extends Stack {
     public readonly vpc: ec2.Vpc;
-    public readonly securityGroup: ec2.SecurityGroup;
-
-    private SECURITY_GROUP_NAME = 'ecs-security-group';
+    public readonly ecsSecurityGroup: ec2.SecurityGroup;
+    public readonly rdsSecurityGroup: ec2.SecurityGroup;
+    private readonly ECS_SECURITY_GROUP_NAME = 'ecs-security-group';
+    private readonly RDS_SECURITY_GROUP_NAME = 'rds-security-group';
 
     constructor(scope: Construct, id: string, props?: StackProps) {
         super(scope, id, props);
@@ -20,44 +21,51 @@ export class NetworkStack extends Stack {
                     subnetType: ec2.SubnetType.PUBLIC,
                     cidrMask: 24,
                 },
+                {
+                    name: 'private-subnet',
+                    subnetType: ec2.SubnetType.PRIVATE_ISOLATED, // Completely isolated private subnet
+                    cidrMask: 24,
+                },
             ],
         });
 
-        // Create Security Group
-        this.securityGroup = this.createSecurityGroup(this.SECURITY_GROUP_NAME);
-
-        // Output the VPC ID, subnet ID and security group ID
-        new CfnOutput(this, 'VPCId', { value: this.vpc.vpcId });
-        new CfnOutput(this, 'SecurityGroup', {
-            value: this.securityGroup.securityGroupId,
-        });
-    }
-
-    createSecurityGroup(securityGroupName: string) {
-        const securityGroup = new ec2.SecurityGroup(this, securityGroupName, {
+        // Create Security Groups
+        this.ecsSecurityGroup = new ec2.SecurityGroup(this, this.ECS_SECURITY_GROUP_NAME, {
             vpc: this.vpc,
-            securityGroupName: securityGroupName,
+            securityGroupName: this.ECS_SECURITY_GROUP_NAME,
             allowAllOutbound: true,
         });
 
         // Authorize ingress from Port 80
-        securityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
-
-        securityGroup.connections.allowInternally(
+        this.ecsSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'Allow HTTP traffic');
+        this.ecsSecurityGroup.connections.allowInternally(
             ec2.Port.tcp(8888),
             'Allow Config Server traffic within security group',
         );
-
-        securityGroup.connections.allowInternally(
+        this.ecsSecurityGroup.connections.allowInternally(
             ec2.Port.tcp(8761),
             'Allow Discovery Server traffic within security group',
         );
-
-        securityGroup.connections.allowInternally(
+        this.ecsSecurityGroup.connections.allowInternally(
             ec2.Port.tcp(9090),
             'Allow Admin Server traffic within security group',
         );
 
-        return securityGroup;
+        this.rdsSecurityGroup = new ec2.SecurityGroup(this, this.RDS_SECURITY_GROUP_NAME, {
+            vpc: this.vpc,
+            securityGroupName: this.RDS_SECURITY_GROUP_NAME,
+            allowAllOutbound: true,
+        });
+
+        this.rdsSecurityGroup.addIngressRule(this.ecsSecurityGroup, ec2.Port.tcp(5432));
+
+        // Output the VPC ID, subnet ID and security group ID
+        new CfnOutput(this, 'VPCId', { value: this.vpc.vpcId });
+        new CfnOutput(this, 'EcsSecurityGroup', {
+            value: this.ecsSecurityGroup.securityGroupId,
+        });
+        new CfnOutput(this, 'RdsSecurityGroup', {
+            value: this.rdsSecurityGroup.securityGroupId,
+        })
     }
 }
