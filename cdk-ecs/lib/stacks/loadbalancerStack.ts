@@ -53,7 +53,7 @@ export class LoadBalancerStack extends Stack {
 
     this.loadBalancer.addListener("Listener", {
       protocol: elbv2.ApplicationProtocol.HTTP,
-      port: 8080,
+      port: 80,
       defaultTargetGroups: [targetGroup],
     });
 

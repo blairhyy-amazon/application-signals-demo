@@ -1,48 +1,69 @@
 import * as cdk from "aws-cdk-lib";
 import * as assert from "assert";
 
-import { getECRImagePrefix } from "./utils";
+import { getECRImagePrefix, getLatestAdotJavaTag } from "./utils";
 import { EcsClusterStack } from "./stacks/ecsStack";
 import { IamRolesStack } from "./stacks/iamRolesStack";
 import { NetworkStack } from "./stacks/networkStack";
 import { ServiceDiscoveryStack } from "./stacks/servicediscoveryStack";
 import { LogStack } from "./stacks/logStack";
+import { LoadBalancerStack } from "./stacks/loadbalancerStack";
 
 class ApplicationSignalsECSDemo {
   private readonly app: cdk.App;
   private ecrImagePrefix: string;
+  private adotJavaImageTag: string;
   private ecsClusterStack: EcsClusterStack;
   private serviceDiscoveryStack: ServiceDiscoveryStack;
+  private loadbalancerStack: LoadBalancerStack;
   private logStack: LogStack;
 
   constructor() {
     this.app = new cdk.App();
     this.ecrImagePrefix = "";
+    this.adotJavaImageTag = "";
     this.runApp();
   }
 
-  public runApp(): void {
+  public async runApp(): Promise<void> {
     const ECR_REGION = "us-east-1";
-    getECRImagePrefix(ECR_REGION)
-      .then((prefix) => {
-        this.ecrImagePrefix = prefix;
-        assert(this.ecrImagePrefix !== "", "ECR Image Prefix is empty");
-        this.createStacks();
-        this.createServers();
-        this.app.synth();
-      })
-      .catch((err) => console.error("Error:", err));
-  }
+    try {
+      const [ecrImagePrefix, adotJavaImageTag] = await Promise.all([
+        getECRImagePrefix(ECR_REGION),
+        getLatestAdotJavaTag(),
+      ]);
 
-  private createServers() {
-    this.ecsClusterStack.createConfigServer();
-    this.ecsClusterStack.createDiscoveryServer();
-    this.ecsClusterStack.createAdminServer();
+      assert(ecrImagePrefix !== "", "ECR Image Prefix is empty");
+      assert(adotJavaImageTag !== "", "ADOT Java Image Tag is empty");
+
+      this.ecrImagePrefix = ecrImagePrefix;
+      this.adotJavaImageTag = adotJavaImageTag;
+      console.log(this.adotJavaImageTag);
+
+      // Execute synchronous operations
+      this.createStacks();
+      this.createServers();
+      this.createApiGateway();
+      this.app.synth();
+    } catch (error) {
+      throw error;
+    }
   }
 
   private createStacks(): void {
     const networkStack = new NetworkStack(this.app, "NetworkStack");
+
     this.logStack = new LogStack(this.app, "LogStack");
+
+    this.loadbalancerStack = new LoadBalancerStack(
+      this.app,
+      "LoadBalancerStack",
+      {
+        vpc: networkStack.vpc,
+        securityGroup: networkStack.securityGroup,
+      },
+    );
+
     const iamRolesStack = new IamRolesStack(this.app, "IamRolesStack");
 
     this.serviceDiscoveryStack = new ServiceDiscoveryStack(
@@ -63,6 +84,19 @@ class ApplicationSignalsECSDemo {
       serviceDiscoveryStack: this.serviceDiscoveryStack,
       logStack: this.logStack,
     });
+  }
+
+  private createServers() {
+    this.ecsClusterStack.createConfigServer();
+    this.ecsClusterStack.createDiscoveryServer();
+    this.ecsClusterStack.createAdminServer();
+  }
+
+  private createApiGateway() {
+    this.ecsClusterStack.createApiGateway(
+      this.loadbalancerStack.loadBalancer.loadBalancerDnsName,
+      this.adotJavaImageTag,
+    );
   }
 }
 
