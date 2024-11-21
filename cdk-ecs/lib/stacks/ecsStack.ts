@@ -1,387 +1,335 @@
-import { CfnOutput, Stack, StackProps } from "aws-cdk-lib";
-import { Construct } from "constructs";
-import * as ecs from "aws-cdk-lib/aws-ecs";
-import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as iam from "aws-cdk-lib/aws-iam";
+import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
-import { ServiceDiscoveryStack } from "./servicediscoveryStack";
-import { LogStack } from "./logStack";
+import { ServiceDiscoveryStack } from './servicediscoveryStack';
+import { LogStack } from './logStack';
 
 interface EcsClusterStackProps extends StackProps {
-  readonly vpc: ec2.Vpc;
-  readonly securityGroups: ec2.SecurityGroup[];
-  readonly ecsTaskRole: iam.Role;
-  readonly ecsTaskExecutionRole: iam.Role;
-  readonly subnets: ec2.ISubnet[];
-  readonly ecrImagePrefix: string;
-  readonly serviceDiscoveryStack: ServiceDiscoveryStack;
-  readonly logStack: LogStack;
+    readonly vpc: ec2.Vpc;
+    readonly securityGroups: ec2.SecurityGroup[];
+    readonly ecsTaskRole: iam.Role;
+    readonly ecsTaskExecutionRole: iam.Role;
+    readonly subnets: ec2.ISubnet[];
+    readonly ecrImagePrefix: string;
+    readonly serviceDiscoveryStack: ServiceDiscoveryStack;
+    readonly logStack: LogStack;
 }
 
 interface CreateServiceProps {
-  readonly serviceName: string;
-  readonly taskDefinition: ecs.TaskDefinition;
+    readonly serviceName: string;
+    readonly taskDefinition: ecs.TaskDefinition;
 }
 
 export class EcsClusterStack extends Stack {
-  public readonly cluster: ecs.Cluster;
-  private readonly securityGroups: ec2.SecurityGroup[];
-  private readonly ecsTaskRole: iam.Role;
-  private readonly ecsTaskExecutionRole: iam.Role;
-  private readonly subnets: ec2.ISubnet[];
-  private readonly ecrImagePrefix: string;
-  private readonly serviceDiscoveryStack: ServiceDiscoveryStack;
-  private readonly logStack: LogStack;
-  private readonly CLUSTER_NAME = "ecs-pet-clinic-demo";
-  private readonly CONFIG_SERVER = "pet-clinic-config-server";
-  private readonly DISCOVERY_SERVER = "pet-clinic-discovery-server";
-  private readonly ADMIN_SERVER = "pet-clinic-admin-server";
-  private readonly API_GATEWAY = "pet-clinic-api-gateway";
+    public readonly cluster: ecs.Cluster;
+    private readonly securityGroups: ec2.SecurityGroup[];
+    private readonly ecsTaskRole: iam.Role;
+    private readonly ecsTaskExecutionRole: iam.Role;
+    private readonly subnets: ec2.ISubnet[];
+    private readonly ecrImagePrefix: string;
+    private readonly serviceDiscoveryStack: ServiceDiscoveryStack;
+    private readonly logStack: LogStack;
+    private readonly CLUSTER_NAME = 'ecs-pet-clinic-demo';
+    private readonly CONFIG_SERVER = 'pet-clinic-config-server';
+    private readonly DISCOVERY_SERVER = 'pet-clinic-discovery-server';
+    private readonly ADMIN_SERVER = 'pet-clinic-admin-server';
+    private readonly API_GATEWAY = 'pet-clinic-api-gateway';
 
-  constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
-    super(scope, id, props);
+    constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
+        super(scope, id, props);
 
-    this.cluster = new ecs.Cluster(this, "EcsCluster", {
-      vpc: props.vpc,
-      clusterName: this.CLUSTER_NAME,
-    });
+        this.cluster = new ecs.Cluster(this, 'EcsCluster', {
+            vpc: props.vpc,
+            clusterName: this.CLUSTER_NAME,
+        });
 
-    this.securityGroups = props.securityGroups;
-    this.ecsTaskRole = props.ecsTaskRole;
-    this.ecsTaskExecutionRole = props.ecsTaskExecutionRole;
-    this.subnets = props.subnets;
-    this.ecrImagePrefix = props.ecrImagePrefix;
-    this.serviceDiscoveryStack = props.serviceDiscoveryStack;
-    this.logStack = props.logStack;
+        this.securityGroups = props.securityGroups;
+        this.ecsTaskRole = props.ecsTaskRole;
+        this.ecsTaskExecutionRole = props.ecsTaskExecutionRole;
+        this.subnets = props.subnets;
+        this.ecrImagePrefix = props.ecrImagePrefix;
+        this.serviceDiscoveryStack = props.serviceDiscoveryStack;
+        this.logStack = props.logStack;
 
-    new CfnOutput(this, "EcsClusterArn", { value: this.cluster.clusterArn });
-  }
+        new CfnOutput(this, 'EcsClusterArn', { value: this.cluster.clusterArn });
+    }
 
-  createService(props: CreateServiceProps) {
-    // 1. create service discovery service
-    const DNSService = this.serviceDiscoveryStack.createService(
-      props.serviceName,
-    );
+    createService(props: CreateServiceProps) {
+        // 1. create service discovery service
+        const DNSService = this.serviceDiscoveryStack.createService(props.serviceName);
 
-    // 2, create ECS service
-    const ecsService = new ecs.FargateService(
-      this,
-      `${props.serviceName}-ecs-service`,
-      {
-        serviceName: props.serviceName,
-        taskDefinition: props.taskDefinition,
-        cluster: this.cluster,
-        securityGroups: this.securityGroups,
-        vpcSubnets: {
-          subnets: this.subnets,
-        },
-        assignPublicIp: true,
-      },
-    );
-
-    ecsService.associateCloudMapService({
-      service: DNSService,
-    });
-
-    new CfnOutput(this, `ecsService-${props.serviceName}`, {
-      value: ecsService.serviceName,
-    });
-    console.log(`Ecs Service - ${props.serviceName} is created`);
-  }
-
-  createConfigServer() {
-    // Create a log group
-    const configLogGroup = this.logStack.createLogGroup(this.CONFIG_SERVER);
-
-    // Create ECS task definition
-    const taskDefinition = new ecs.TaskDefinition(
-      this,
-      `${this.CONFIG_SERVER}-task`,
-      {
-        cpu: "256",
-        memoryMiB: "512",
-        compatibility: ecs.Compatibility.FARGATE,
-        family: this.CONFIG_SERVER,
-        networkMode: ecs.NetworkMode.AWS_VPC,
-        taskRole: this.ecsTaskRole,
-        executionRole: this.ecsTaskExecutionRole,
-      },
-    );
-
-    // Add Container to Task Definition
-    const container = taskDefinition.addContainer(
-      `${this.CONFIG_SERVER}-container`,
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          `${this.ecrImagePrefix}/springcommunity/spring-petclinic-config-server`,
-        ),
-        cpu: 256,
-        memoryLimitMiB: 512,
-        essential: true,
-        environment: {
-          SPRING_PROFILES_ACTIVE: "ecs",
-        },
-        logging: ecs.LogDrivers.awsLogs({
-          streamPrefix: "ecs",
-          logGroup: configLogGroup,
-        }),
-      },
-    );
-
-    // Add Port Mapping
-    container.addPortMappings({
-      containerPort: 8888,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    // Create ECS service
-    this.createService({
-      serviceName: this.CONFIG_SERVER,
-      taskDefinition: taskDefinition,
-    });
-  }
-
-  createDiscoveryServer() {
-    // Create a log group
-    const discoveryLogGroup = this.logStack.createLogGroup(
-      this.DISCOVERY_SERVER,
-    );
-
-    // Create ECS task definition
-    const taskDefinition = new ecs.TaskDefinition(
-      this,
-      `${this.DISCOVERY_SERVER}-task`,
-      {
-        cpu: "256",
-        memoryMiB: "512",
-        compatibility: ecs.Compatibility.FARGATE,
-        family: this.DISCOVERY_SERVER,
-        networkMode: ecs.NetworkMode.AWS_VPC,
-        taskRole: this.ecsTaskRole,
-        executionRole: this.ecsTaskExecutionRole,
-      },
-    );
-
-    // Add Container to Task Definition
-    const container = taskDefinition.addContainer(
-      `${this.DISCOVERY_SERVER}-container`,
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          `${this.ecrImagePrefix}/springcommunity/spring-petclinic-discovery-server`,
-        ),
-        cpu: 256,
-        memoryLimitMiB: 512,
-        essential: true,
-        environment: {
-          SPRING_PROFILES_ACTIVE: "ecs",
-          CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
-        },
-        logging: ecs.LogDrivers.awsLogs({
-          streamPrefix: "ecs",
-          logGroup: discoveryLogGroup,
-        }),
-      },
-    );
-
-    // Add Port Mapping
-    container.addPortMappings({
-      containerPort: 8761,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    // Create ECS service
-    this.createService({
-      serviceName: this.DISCOVERY_SERVER,
-      taskDefinition: taskDefinition,
-    });
-  }
-
-  createAdminServer() {
-    // Create a log group
-    const adminLogGroup = this.logStack.createLogGroup(this.ADMIN_SERVER);
-
-    // Create ECS task definition
-    const taskDefinition = new ecs.TaskDefinition(
-      this,
-      `${this.ADMIN_SERVER}-task`,
-      {
-        cpu: "256",
-        memoryMiB: "512",
-        compatibility: ecs.Compatibility.FARGATE,
-        family: this.ADMIN_SERVER,
-        networkMode: ecs.NetworkMode.AWS_VPC,
-        taskRole: this.ecsTaskRole,
-        executionRole: this.ecsTaskExecutionRole,
-      },
-    );
-
-    // Add Container to Task Definition
-    const container = taskDefinition.addContainer(
-      `${this.ADMIN_SERVER}-container`,
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          `${this.ecrImagePrefix}/springcommunity/spring-petclinic-admin-server`,
-        ),
-        cpu: 256,
-        memoryLimitMiB: 512,
-        essential: true,
-        environment: {
-          SPRING_PROFILES_ACTIVE: "ecs",
-          CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
-          DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
-          ADMIN_IP: `${this.ADMIN_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
-        },
-        logging: ecs.LogDrivers.awsLogs({
-          streamPrefix: "ecs",
-          logGroup: adminLogGroup,
-        }),
-      },
-    );
-
-    // Add Port Mapping
-    container.addPortMappings({
-      containerPort: 9090,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    // Create ECS service
-    this.createService({
-      serviceName: this.ADMIN_SERVER,
-      taskDefinition: taskDefinition,
-    });
-  }
-
-  createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string) {
-    // Create a log group
-    const apiGatewayLogGroup = this.logStack.createLogGroup(this.API_GATEWAY);
-    const cwAgentApiGatewayLogGroup = this.logStack.createLogGroup(
-      "ecs-cwagent-api-gateway",
-    );
-
-    // Create ECS task definition
-    const taskDefinition = new ecs.TaskDefinition(
-      this,
-      `${this.API_GATEWAY}-task`,
-      {
-        cpu: "256",
-        memoryMiB: "512",
-        compatibility: ecs.Compatibility.FARGATE,
-        family: this.API_GATEWAY,
-        networkMode: ecs.NetworkMode.AWS_VPC,
-        taskRole: this.ecsTaskRole,
-        executionRole: this.ecsTaskExecutionRole,
-      },
-    );
-
-    // Add volume
-    taskDefinition.addVolume({
-      name: "opentelemetry-auto-instrumentation",
-    });
-
-    // Add Container to Task Definition
-    const mainContainer = taskDefinition.addContainer(
-      `${this.API_GATEWAY}-container`,
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          `${this.ecrImagePrefix}/springcommunity/spring-petclinic-api-gateway`,
-        ),
-        cpu: 256,
-        memoryLimitMiB: 512,
-        essential: true,
-        environment: {
-          OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf",
-          OTEL_LOGS_EXPORTER: "none",
-          OTEL_TRACES_SAMPLER: "xray",
-          OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://localhost:4316/v1/traces",
-          OTEL_PROPAGATORS: "tracecontext,baggage,b3,xray",
-          OTEL_RESOURCE_ATTRIBUTES: `aws.log.group.names=${apiGatewayLogGroup.logGroupName},service.name=spring-petclinic-demo-api-gateway`,
-          OTEL_AWS_APPLICATION_SIGNALS_ENABLED: "true",
-          OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT:
-            "http://localhost:4316/v1/metrics",
-          OTEL_METRICS_EXPORTER: "none",
-          JAVA_TOOL_OPTIONS:
-            " -javaagent:/otel-auto-instrumentation/javaagent.jar",
-          SPRING_PROFILES_ACTIVE: "ecs",
-          CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
-          DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
-          API_GATEWAY_IP: loadBalancerDNS, // use load balancer dns
-        },
-        logging: ecs.LogDrivers.awsLogs({
-          streamPrefix: "ecs",
-          logGroup: apiGatewayLogGroup,
-        }),
-      },
-    );
-
-    // Add Port Mapping
-    mainContainer.addPortMappings({
-      containerPort: 8080,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    mainContainer.addMountPoints({
-      sourceVolume: "opentelemetry-auto-instrumentation",
-      containerPath: "/otel-auto-instrumentation",
-      readOnly: false,
-    });
-
-    // Add init container
-    const initContainer = taskDefinition.addContainer(
-      "init-api-gateway-container",
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
-        ),
-        essential: false,
-        command: [
-          "cp",
-          "/javaagent.jar",
-          "/otel-auto-instrumentation/javaagent.jar",
-        ],
-      },
-    );
-
-    initContainer.addMountPoints({
-      sourceVolume: "opentelemetry-auto-instrumentation",
-      containerPath: "/otel-auto-instrumentation",
-      readOnly: false,
-    });
-
-    // Add CloudWatch agent container
-    const cwAgentContainer = taskDefinition.addContainer(
-      "ecs-cwagent-container",
-      {
-        image: ecs.ContainerImage.fromRegistry(
-          "public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest",
-        ),
-        memoryLimitMiB: 128,
-        essential: true,
-        environment: {
-          CW_CONFIG_CONTENT: JSON.stringify({
-            traces: {
-              traces_collected: {
-                application_signals: {},
-              },
+        // 2, create ECS service
+        const ecsService = new ecs.FargateService(this, `${props.serviceName}-ecs-service`, {
+            serviceName: props.serviceName,
+            taskDefinition: props.taskDefinition,
+            cluster: this.cluster,
+            securityGroups: this.securityGroups,
+            vpcSubnets: {
+                subnets: this.subnets,
             },
-            logs: {
-              metrics_collected: {
-                application_signals: {},
-              },
+            assignPublicIp: true,
+        });
+
+        ecsService.associateCloudMapService({
+            service: DNSService,
+        });
+
+        new CfnOutput(this, `ecsService-${props.serviceName}`, {
+            value: ecsService.serviceName,
+        });
+        console.log(`Ecs Service - ${props.serviceName} is created`);
+    }
+
+    createConfigServer() {
+        // Create a log group
+        const configLogGroup = this.logStack.createLogGroup(this.CONFIG_SERVER);
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.CONFIG_SERVER}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.CONFIG_SERVER,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add Container to Task Definition
+        const container = taskDefinition.addContainer(`${this.CONFIG_SERVER}-container`, {
+            image: ecs.ContainerImage.fromRegistry(
+                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-config-server`,
+            ),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                SPRING_PROFILES_ACTIVE: 'ecs',
             },
-          }),
-        },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: configLogGroup,
+            }),
+        });
 
-        logging: ecs.LogDrivers.awsLogs({
-          streamPrefix: "ecs",
-          logGroup: cwAgentApiGatewayLogGroup,
-        }),
-      },
-    );
+        // Add Port Mapping
+        container.addPortMappings({
+            containerPort: 8888,
+            protocol: ecs.Protocol.TCP,
+        });
 
-    // Create ECS service
-    this.createService({
-      serviceName: this.API_GATEWAY,
-      taskDefinition: taskDefinition,
-    });
-  }
+        // Create ECS service
+        this.createService({
+            serviceName: this.CONFIG_SERVER,
+            taskDefinition: taskDefinition,
+        });
+    }
+
+    createDiscoveryServer() {
+        // Create a log group
+        const discoveryLogGroup = this.logStack.createLogGroup(this.DISCOVERY_SERVER);
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.DISCOVERY_SERVER}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.DISCOVERY_SERVER,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add Container to Task Definition
+        const container = taskDefinition.addContainer(`${this.DISCOVERY_SERVER}-container`, {
+            image: ecs.ContainerImage.fromRegistry(
+                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-discovery-server`,
+            ),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                SPRING_PROFILES_ACTIVE: 'ecs',
+                CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: discoveryLogGroup,
+            }),
+        });
+
+        // Add Port Mapping
+        container.addPortMappings({
+            containerPort: 8761,
+            protocol: ecs.Protocol.TCP,
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: this.DISCOVERY_SERVER,
+            taskDefinition: taskDefinition,
+        });
+    }
+
+    createAdminServer() {
+        // Create a log group
+        const adminLogGroup = this.logStack.createLogGroup(this.ADMIN_SERVER);
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.ADMIN_SERVER}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.ADMIN_SERVER,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add Container to Task Definition
+        const container = taskDefinition.addContainer(`${this.ADMIN_SERVER}-container`, {
+            image: ecs.ContainerImage.fromRegistry(
+                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-admin-server`,
+            ),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                SPRING_PROFILES_ACTIVE: 'ecs',
+                CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
+                DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
+                ADMIN_IP: `${this.ADMIN_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: adminLogGroup,
+            }),
+        });
+
+        // Add Port Mapping
+        container.addPortMappings({
+            containerPort: 9090,
+            protocol: ecs.Protocol.TCP,
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: this.ADMIN_SERVER,
+            taskDefinition: taskDefinition,
+        });
+    }
+
+    createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string) {
+        // Create a log group
+        const apiGatewayLogGroup = this.logStack.createLogGroup(this.API_GATEWAY);
+        const cwAgentApiGatewayLogGroup = this.logStack.createLogGroup('ecs-cwagent-api-gateway');
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${this.API_GATEWAY}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: this.API_GATEWAY,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add volume
+        taskDefinition.addVolume({
+            name: 'opentelemetry-auto-instrumentation',
+        });
+
+        // Add Container to Task Definition
+        const mainContainer = taskDefinition.addContainer(`${this.API_GATEWAY}-container`, {
+            image: ecs.ContainerImage.fromRegistry(
+                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-api-gateway`,
+            ),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
+                OTEL_LOGS_EXPORTER: 'none',
+                OTEL_TRACES_SAMPLER: 'xray',
+                OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
+                OTEL_PROPAGATORS: 'tracecontext,baggage,b3,xray',
+                OTEL_RESOURCE_ATTRIBUTES: `aws.log.group.names=${apiGatewayLogGroup.logGroupName},service.name=spring-petclinic-demo-api-gateway`,
+                OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true',
+                OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: 'http://localhost:4316/v1/metrics',
+                OTEL_METRICS_EXPORTER: 'none',
+                JAVA_TOOL_OPTIONS: ' -javaagent:/otel-auto-instrumentation/javaagent.jar',
+                SPRING_PROFILES_ACTIVE: 'ecs',
+                CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
+                DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
+                API_GATEWAY_IP: loadBalancerDNS, // use load balancer dns
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: apiGatewayLogGroup,
+            }),
+        });
+
+        // Add Port Mapping
+        mainContainer.addPortMappings({
+            containerPort: 8080,
+            protocol: ecs.Protocol.TCP,
+        });
+
+        mainContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation',
+            containerPath: '/otel-auto-instrumentation',
+            readOnly: false,
+        });
+
+        // Add init container
+        const initContainer = taskDefinition.addContainer('init-api-gateway-container', {
+            image: ecs.ContainerImage.fromRegistry(
+                `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
+            ),
+            essential: false, // The container will stop with exit 0 after it completes.
+            command: ['cp', '/javaagent.jar', '/otel-auto-instrumentation/javaagent.jar'],
+        });
+
+        initContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation',
+            containerPath: '/otel-auto-instrumentation',
+            readOnly: false,
+        });
+
+        // Add CloudWatch agent container
+        const cwAgentContainer = taskDefinition.addContainer('ecs-cwagent-container', {
+            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            memoryLimitMiB: 128,
+            essential: true,
+            environment: {
+                CW_CONFIG_CONTENT: JSON.stringify({
+                    traces: {
+                        traces_collected: {
+                            application_signals: {},
+                        },
+                    },
+                    logs: {
+                        metrics_collected: {
+                            application_signals: {},
+                        },
+                    },
+                }),
+            },
+
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: cwAgentApiGatewayLogGroup,
+            }),
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: this.API_GATEWAY,
+            taskDefinition: taskDefinition,
+        });
+    }
 }
