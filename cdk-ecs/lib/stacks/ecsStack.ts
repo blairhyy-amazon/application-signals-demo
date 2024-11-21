@@ -301,7 +301,7 @@ export class EcsClusterStack extends Stack {
         });
 
         // Add CloudWatch agent container
-        const cwAgentContainer = taskDefinition.addContainer('ecs-cwagent-container', {
+        taskDefinition.addContainer('ecs-cwagent-container', {
             image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
