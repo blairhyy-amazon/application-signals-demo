@@ -679,7 +679,7 @@ export class EcsClusterStack extends Stack {
 
         // Create a log group
         const insuranceLogGroup = this.logStack.createLogGroup(INSURANCE_SERVICE);
-        const cwAgentVisitsServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-insurance-service');
+        const cwAgentInsuranceServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-insurance-service');
 
         // Create ECS task definition
         const taskDefinition = new ecs.TaskDefinition(this, `${INSURANCE_SERVICE}-task`, {
@@ -723,7 +723,6 @@ export class EcsClusterStack extends Stack {
                 OTEL_RESOURCE_ATTRIBUTES: `service.name=${INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
                 OTEL_METRICS_EXPORTER: 'none',
                 OTEL_PYTHON_DISTRO: 'aws_distro',
-                OTEL_PROPAGATORS: 'tracecontext,baggage,b3,xray',
                 EUREKA_SERVER_URL: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
                 INSURANCE_SERVICE_IP: `${INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
                 DB_NAME: 'postgres',
@@ -798,13 +797,144 @@ export class EcsClusterStack extends Stack {
 
             logging: ecs.LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
-                logGroup: cwAgentVisitsServiceLogGroup,
+                logGroup: cwAgentInsuranceServiceLogGroup,
             }),
         });
 
         // Create ECS service
         this.createService({
             serviceName: INSURANCE_SERVICE,
+            taskDefinition: taskDefinition,
+        });
+    }
+
+    runBillingService(adotPythonImageTag: string, dbSecret: secretsmanager.Secret, rds_endpoint: string) {
+        const BILLING_SERVICE = 'pet-clinic-billing-service';
+
+        // Create a log group
+        const billingLogGroup = this.logStack.createLogGroup(BILLING_SERVICE);
+        const cwAgentBillingServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-billing-service');
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${BILLING_SERVICE}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: BILLING_SERVICE,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add volume
+        taskDefinition.addVolume({
+            name: 'opentelemetry-auto-instrumentation-python',
+        });
+
+        // Add Container to Task Definition
+        const mainContainer = taskDefinition.addContainer(`${BILLING_SERVICE}-container`, {
+            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-billing-service`),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            secrets: {
+                DB_USER: ecs.Secret.fromSecretsManager(dbSecret, 'username'),
+                DB_USER_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
+            },
+            environment: {
+                DB_SECRET_ARN: dbSecret.secretArn,
+                DJANGO_SETTINGS_MODULE: 'pet_clinic_billing_service.settings',
+                PYTHONPATH:
+                    '/otel-auto-instrumentation-python/opentelemetry/instrumentation/auto_instrumentation:/app:/otel-auto-instrumentation-python',
+                OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
+                OTEL_TRACES_SAMPLER_ARG: 'endpoint=http://localhost:2000',
+                OTEL_LOGS_EXPORTER: 'none',
+                OTEL_PYTHON_CONFIGURATOR: 'aws_configurator',
+                OTEL_TRACES_SAMPLER: 'xray',
+                OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
+                OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: 'http://localhost:4316/v1/metrics',
+                OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true',
+                OTEL_RESOURCE_ATTRIBUTES: `service.name=${BILLING_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                OTEL_METRICS_EXPORTER: 'none',
+                OTEL_PYTHON_DISTRO: 'aws_distro',
+                // OTEL_PROPAGATORS: 'tracecontext,baggage,b3,xray',
+                EUREKA_SERVER_URL: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                BILLING_SERVICE_IP: `${BILLING_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                DB_NAME: 'postgres',
+                DATABASE_PROFILE: 'postgresql',
+                DB_SERVICE_HOST: rds_endpoint,
+                DB_SERVICE_PORT: '5432',
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: billingLogGroup,
+            }),
+            command: ['sh', '-c', 'python manage.py migrate && python manage.py runserver 0.0.0.0:8800 --noreload'],
+            // healthCheck: {
+            //     command: ['CMD-SHELL', 'curl -f http://localhost:8000/billing/ || exit 1'],
+            //     interval: Duration.seconds(60),
+            //     timeout: Duration.seconds(10),
+            //     retries: 5,
+            //     startPeriod: Duration.seconds(3),
+            // },
+        });
+
+        // Add Port Mapping
+        mainContainer.addPortMappings({
+            containerPort: 8800,
+            protocol: ecs.Protocol.TCP,
+        });
+
+        mainContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation-python',
+            containerPath: '/otel-auto-instrumentation-python',
+            readOnly: false,
+        });
+
+        // Add init container
+        const initContainer = taskDefinition.addContainer('init-insurance-service-container', {
+            image: ecs.ContainerImage.fromRegistry(
+                `public.ecr.aws/aws-observability/adot-autoinstrumentation-python:${adotPythonImageTag}`,
+            ),
+            essential: false, // The container will stop with exit 0 after it completes.
+            command: ['cp', '-a', '/autoinstrumentation/.', '/otel-auto-instrumentation-python'],
+        });
+
+        initContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation-python',
+            containerPath: '/otel-auto-instrumentation-python',
+            readOnly: false,
+        });
+
+        // Add CloudWatch agent container
+        taskDefinition.addContainer('ecs-cwagent-billing-service-container', {
+            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            memoryLimitMiB: 128,
+            essential: true,
+            environment: {
+                CW_CONFIG_CONTENT: JSON.stringify({
+                    traces: {
+                        traces_collected: {
+                            application_signals: {},
+                        },
+                    },
+                    logs: {
+                        metrics_collected: {
+                            application_signals: {},
+                        },
+                    },
+                }),
+            },
+
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: cwAgentBillingServiceLogGroup,
+            }),
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: BILLING_SERVICE,
             taskDefinition: taskDefinition,
         });
     }
