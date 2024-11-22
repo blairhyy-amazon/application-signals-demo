@@ -938,4 +938,54 @@ export class EcsClusterStack extends Stack {
             taskDefinition: taskDefinition,
         });
     }
+
+    generateTraffic(loadBalancerDNS: string){
+        const TRAFFIC_GENERATOR = 'traffic-generator';
+        const trafficGeneratorLogGroup = this.logStack.createLogGroup(TRAFFIC_GENERATOR);
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${TRAFFIC_GENERATOR}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: TRAFFIC_GENERATOR,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+
+        // Add Container to Task Definition
+         taskDefinition.addContainer(`${TRAFFIC_GENERATOR}-container`, {
+            image: ecs.ContainerImage.fromRegistry(`public.ecr.aws/u8q5x3l1/traffic-generator`),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            environment: {
+                URL: `http://${loadBalancerDNS}:80`,
+                HIGH_LOAD_MAX: '1600',
+                HIGH_LOAD_MIN: '800',
+                BURST_DELAY_MAX: '80',
+                BURST_DELAY_MIN: '60',
+                LOW_LOAD_MAX: '60',
+                LOW_LOAD_MIN: '30',
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: trafficGeneratorLogGroup,
+            }),
+        });
+
+        new ecs.FargateService(this, `${TRAFFIC_GENERATOR}-ecs-service`, {
+            serviceName: TRAFFIC_GENERATOR,
+            taskDefinition: taskDefinition,
+            cluster: this.cluster,
+            securityGroups: this.securityGroups,
+            vpcSubnets: {
+                subnets: this.subnets,
+            },
+            assignPublicIp: true,
+            desiredCount: 1
+        });
+    }
 }

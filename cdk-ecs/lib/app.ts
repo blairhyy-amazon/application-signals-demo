@@ -112,6 +112,15 @@ class ApplicationSignalsECSDemo {
             this.rdsDatabaseStack.dbSecret,
             this.rdsDatabaseStack.rdsInstance.dbInstanceEndpointAddress,
         );
+        this.ecsClusterStack.runBillingService(
+            this.adotPythonImageTag,
+            this.rdsDatabaseStack.dbSecret,
+            this.rdsDatabaseStack.rdsInstance.dbInstanceEndpointAddress
+        );
+    }
+
+    private generateTraffic(){
+        this.ecsClusterStack.generateTraffic(this.loadbalancerStack.loadBalancer.loadBalancerDnsName)
     }
 }
 

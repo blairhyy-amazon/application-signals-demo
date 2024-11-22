@@ -47,7 +47,7 @@ export class NetworkStack extends Stack {
         });
 
         // Allow Vets, Customers, Visits, Insurance services traffic within security group
-        [8083, 8081, 8082, 8000].forEach((port) => {
+        [8083, 8081, 8082, 8000, 8800].forEach((port) => {
             this.ecsSecurityGroup.connections.allowInternally(
                 ec2.Port.tcp(port),
                 `Allow internal traffic on port ${port}`,
