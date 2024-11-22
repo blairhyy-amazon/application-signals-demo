@@ -1,8 +1,9 @@
-import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 import { ServiceDiscoveryStack } from './servicediscoveryStack';
 import { LogStack } from './logStack';
@@ -669,6 +670,141 @@ export class EcsClusterStack extends Stack {
         // Create ECS service
         this.createService({
             serviceName: VISITS_SERVICE,
+            taskDefinition: taskDefinition,
+        });
+    }
+
+    runInsuranceService(adotPythonImageTag: string, dbSecret: secretsmanager.Secret, rds_endpoint: string) {
+        const INSURANCE_SERVICE = 'pet-clinic-insurance-service';
+
+        // Create a log group
+        const insuranceLogGroup = this.logStack.createLogGroup(INSURANCE_SERVICE);
+        const cwAgentVisitsServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-insurance-service');
+
+        // Create ECS task definition
+        const taskDefinition = new ecs.TaskDefinition(this, `${INSURANCE_SERVICE}-task`, {
+            cpu: '256',
+            memoryMiB: '512',
+            compatibility: ecs.Compatibility.FARGATE,
+            family: INSURANCE_SERVICE,
+            networkMode: ecs.NetworkMode.AWS_VPC,
+            taskRole: this.ecsTaskRole,
+            executionRole: this.ecsTaskExecutionRole,
+        });
+
+        // Add volume
+        taskDefinition.addVolume({
+            name: 'opentelemetry-auto-instrumentation-python',
+        });
+
+        // Add Container to Task Definition
+        const mainContainer = taskDefinition.addContainer(`${INSURANCE_SERVICE}-container`, {
+            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-insurance-service`),
+            cpu: 256,
+            memoryLimitMiB: 512,
+            essential: true,
+            secrets: {
+                DB_USER: ecs.Secret.fromSecretsManager(dbSecret, 'username'),
+                DB_USER_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
+            },
+            environment: {
+                DB_SECRET_ARN: dbSecret.secretArn,
+                DJANGO_SETTINGS_MODULE: 'pet_clinic_insurance_service.settings',
+                PYTHONPATH:
+                    '/otel-auto-instrumentation-python/opentelemetry/instrumentation/auto_instrumentation:/app:/otel-auto-instrumentation-python',
+                OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
+                OTEL_TRACES_SAMPLER_ARG: 'endpoint=http://localhost:2000',
+                OTEL_LOGS_EXPORTER: 'none',
+                OTEL_PYTHON_CONFIGURATOR: 'aws_configurator',
+                OTEL_TRACES_SAMPLER: 'xray',
+                OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
+                OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: 'http://localhost:4316/v1/metrics',
+                OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true',
+                OTEL_RESOURCE_ATTRIBUTES: `service.name=${INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                OTEL_METRICS_EXPORTER: 'none',
+                OTEL_PYTHON_DISTRO: 'aws_distro',
+                OTEL_PROPAGATORS: 'tracecontext,baggage,b3,xray',
+                EUREKA_SERVER_URL: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                INSURANCE_SERVICE_IP: `${INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                DB_NAME: 'postgres',
+                DATABASE_PROFILE: 'postgresql',
+                DB_SERVICE_HOST: rds_endpoint,
+                DB_SERVICE_PORT: '5432',
+            },
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: insuranceLogGroup,
+            }),
+            command: [
+                'sh',
+                '-c',
+                'python manage.py migrate && python manage.py loaddata initial_data.json && python manage.py runserver 0.0.0.0:8000 --noreload',
+            ],
+            healthCheck: {
+                command: ['CMD-SHELL', 'curl -f http://localhost:8000/insurances/ || exit 1'],
+                interval: Duration.seconds(60),
+                timeout: Duration.seconds(10),
+                retries: 5,
+                startPeriod: Duration.seconds(3),
+            },
+        });
+
+        // Add Port Mapping
+        mainContainer.addPortMappings({
+            containerPort: 8000,
+            protocol: ecs.Protocol.TCP,
+        });
+
+        mainContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation-python',
+            containerPath: '/otel-auto-instrumentation-python',
+            readOnly: false,
+        });
+
+        // Add init container
+        const initContainer = taskDefinition.addContainer('init-insurance-service-container', {
+            image: ecs.ContainerImage.fromRegistry(
+                `public.ecr.aws/aws-observability/adot-autoinstrumentation-python:${adotPythonImageTag}`,
+            ),
+            essential: false, // The container will stop with exit 0 after it completes.
+            command: ['cp', '-a', '/autoinstrumentation/.', '/otel-auto-instrumentation-python'],
+        });
+
+        initContainer.addMountPoints({
+            sourceVolume: 'opentelemetry-auto-instrumentation-python',
+            containerPath: '/otel-auto-instrumentation-python',
+            readOnly: false,
+        });
+
+        // Add CloudWatch agent container
+        taskDefinition.addContainer('ecs-cwagent-insurance-service-container', {
+            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            memoryLimitMiB: 128,
+            essential: true,
+            environment: {
+                CW_CONFIG_CONTENT: JSON.stringify({
+                    traces: {
+                        traces_collected: {
+                            application_signals: {},
+                        },
+                    },
+                    logs: {
+                        metrics_collected: {
+                            application_signals: {},
+                        },
+                    },
+                }),
+            },
+
+            logging: ecs.LogDrivers.awsLogs({
+                streamPrefix: 'ecs',
+                logGroup: cwAgentVisitsServiceLogGroup,
+            }),
+        });
+
+        // Create ECS service
+        this.createService({
+            serviceName: INSURANCE_SERVICE,
             taskDefinition: taskDefinition,
         });
     }

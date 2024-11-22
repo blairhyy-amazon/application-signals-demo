@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as assert from 'assert';
 
-import { getECRImagePrefix, getLatestAdotJavaTag } from './utils';
+import { getECRImagePrefix, getLatestAdotJavaTag, getLatestAdotPythonTag } from './utils';
 import { EcsClusterStack } from './stacks/ecsStack';
 import { IamRolesStack } from './stacks/iamRolesStack';
 import { NetworkStack } from './stacks/networkStack';
@@ -14,31 +14,36 @@ class ApplicationSignalsECSDemo {
     private readonly app: cdk.App;
     private ecrImagePrefix: string;
     private adotJavaImageTag: string;
+    private adotPythonImageTag: string;
     private ecsClusterStack: EcsClusterStack;
     private serviceDiscoveryStack: ServiceDiscoveryStack;
     private loadbalancerStack: LoadBalancerStack;
     private logStack: LogStack;
+    private rdsDatabaseStack: RdsDatabaseStack;
 
     constructor() {
         this.app = new cdk.App();
         this.ecrImagePrefix = '';
         this.adotJavaImageTag = '';
+        this.adotPythonImageTag = '';
         this.runApp();
     }
 
     public async runApp(): Promise<void> {
         const ECR_REGION = 'us-east-1';
-        const [ecrImagePrefix, adotJavaImageTag] = await Promise.all([
+        const [ecrImagePrefix, adotJavaImageTag, adotPythonImageTag] = await Promise.all([
             getECRImagePrefix(ECR_REGION),
             getLatestAdotJavaTag(),
+            getLatestAdotPythonTag(),
         ]);
 
         assert(ecrImagePrefix !== '', 'ECR Image Prefix is empty');
         assert(adotJavaImageTag !== '', 'ADOT Java Image Tag is empty');
+        assert(adotPythonImageTag !== '', 'ADOT Python Image Tag is empty');
 
         this.ecrImagePrefix = ecrImagePrefix;
         this.adotJavaImageTag = adotJavaImageTag;
-        console.log(this.adotJavaImageTag);
+        this.adotPythonImageTag = adotPythonImageTag;
 
         // Execute synchronous operations
         this.createStacks();
@@ -55,19 +60,22 @@ class ApplicationSignalsECSDemo {
 
         this.loadbalancerStack = new LoadBalancerStack(this.app, 'LoadBalancerStack', {
             vpc: networkStack.vpc,
-            securityGroup: networkStack.ecsSecurityGroup,
+            securityGroup: networkStack.albSecurityGroup,
+        });
+
+        this.rdsDatabaseStack = new RdsDatabaseStack(this.app, 'RdsDatabaseStack', {
+            vpc: networkStack.vpc,
+            rdsSecurityGroup: networkStack.rdsSecurityGroup,
         });
 
         const iamRolesStack = new IamRolesStack(this.app, 'IamRolesStack');
 
+        // Grant ecsTaskRole access to database
+        this.rdsDatabaseStack.dbSecret.grantRead(iamRolesStack.ecsTaskRole);
+        this.rdsDatabaseStack.dbSecret.grantWrite(iamRolesStack.ecsTaskRole);
+
         this.serviceDiscoveryStack = new ServiceDiscoveryStack(this.app, 'ServiceDiscoveryStack', {
             vpc: networkStack.vpc,
-        });
-
-        const rdsDatabaseStack = new RdsDatabaseStack(this.app, 'RdsDatabaseStack', {
-            vpc: networkStack.vpc,
-            rdsSecurityGroup: networkStack.rdsSecurityGroup,
-            ecsTaskRole: iamRolesStack.ecsTaskRole,
         });
 
         this.ecsClusterStack = new EcsClusterStack(this.app, 'EcsClusterStack', {
@@ -99,6 +107,11 @@ class ApplicationSignalsECSDemo {
         this.ecsClusterStack.runVetsService(this.adotJavaImageTag);
         this.ecsClusterStack.runCustomersService(this.adotJavaImageTag);
         this.ecsClusterStack.runVisitsService(this.adotJavaImageTag);
+        this.ecsClusterStack.runInsuranceService(
+            this.adotPythonImageTag,
+            this.rdsDatabaseStack.dbSecret,
+            this.rdsDatabaseStack.rdsInstance.dbInstanceEndpointAddress,
+        );
     }
 }
 

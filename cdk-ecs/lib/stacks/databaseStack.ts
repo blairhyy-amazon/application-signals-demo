@@ -8,13 +8,13 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 interface RdsDatabaseStackProps extends StackProps {
     readonly vpc: ec2.Vpc;
     readonly rdsSecurityGroup: ec2.SecurityGroup;
-    readonly ecsTaskRole: iam.Role;
 }
 
 export class RdsDatabaseStack extends Stack {
     private readonly vpc: ec2.Vpc;
     private readonly DB_INSTANCE_IDENTIFIER: string = 'petclinic-python';
     public readonly rdsInstance: rds.DatabaseInstance;
+    public readonly dbSecret: secretsmanager.Secret;
 
     constructor(scope: Construct, id: string, props: RdsDatabaseStackProps) {
         super(scope, id, props);
@@ -33,7 +33,7 @@ export class RdsDatabaseStack extends Stack {
         });
 
         // Create a Secret for the database credentials
-        const dbSecret = new secretsmanager.Secret(this, 'DBSecret', {
+        this.dbSecret = new secretsmanager.Secret(this, 'DBSecret', {
             secretName: 'PetClinicDBCredentials',
             generateSecretString: {
                 secretStringTemplate: JSON.stringify({ username: 'root' }),
@@ -46,7 +46,7 @@ export class RdsDatabaseStack extends Stack {
         // Create database instance
         this.rdsInstance = new rds.DatabaseInstance(this, 'MyDatabase', {
             vpc: this.vpc,
-            credentials: rds.Credentials.fromSecret(dbSecret),
+            credentials: rds.Credentials.fromSecret(this.dbSecret),
             vpcSubnets: {
                 subnetType: ec2.SubnetType.PRIVATE_ISOLATED, // Ensure private subnets with NAT are used
             },
@@ -69,9 +69,6 @@ export class RdsDatabaseStack extends Stack {
         });
 
         Tags.of(this.rdsInstance).add('Name', this.DB_INSTANCE_IDENTIFIER);
-
-        dbSecret.grantRead(props.ecsTaskRole);
-        dbSecret.grantWrite(props.ecsTaskRole);
 
         // Output the subnet group name
         new CfnOutput(this, 'DBSubnetGroupName', {
