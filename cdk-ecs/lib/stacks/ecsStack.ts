@@ -4,6 +4,7 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 
 import { ServiceDiscoveryStack } from './servicediscoveryStack';
 import { LogStack } from './logStack';
@@ -223,7 +224,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string) {
+    createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string, targetGroup: elbv2.ApplicationTargetGroup) {
         // Create a log group
         const apiGatewayLogGroup = this.logStack.createLogGroup(this.API_GATEWAY);
         const cwAgentApiGatewayLogGroup = this.logStack.createLogGroup('ecs-cwagent-api-gateway');
@@ -327,11 +328,20 @@ export class EcsClusterStack extends Stack {
             }),
         });
 
-        // Create ECS service
-        this.createService({
+        const service = new ecs.FargateService(this, `${this.API_GATEWAY}-ecs-service`, {
             serviceName: this.API_GATEWAY,
             taskDefinition: taskDefinition,
+            cluster: this.cluster,
+            securityGroups: this.securityGroups,
+            vpcSubnets: {
+                subnets: this.subnets,
+            },
+            assignPublicIp: true,
+            desiredCount: 1,
         });
+
+        // Add Application Load Balancer target group
+        service.attachToApplicationTargetGroup(targetGroup);
     }
 
     runVetsService(adotJavaImageTag: string) {
@@ -939,7 +949,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    generateTraffic(loadBalancerDNS: string){
+    generateTraffic(loadBalancerDNS: string) {
         const TRAFFIC_GENERATOR = 'traffic-generator';
         const trafficGeneratorLogGroup = this.logStack.createLogGroup(TRAFFIC_GENERATOR);
 
@@ -954,9 +964,8 @@ export class EcsClusterStack extends Stack {
             executionRole: this.ecsTaskExecutionRole,
         });
 
-
         // Add Container to Task Definition
-         taskDefinition.addContainer(`${TRAFFIC_GENERATOR}-container`, {
+        taskDefinition.addContainer(`${TRAFFIC_GENERATOR}-container`, {
             image: ecs.ContainerImage.fromRegistry(`public.ecr.aws/u8q5x3l1/traffic-generator`),
             cpu: 256,
             memoryLimitMiB: 512,
@@ -985,7 +994,7 @@ export class EcsClusterStack extends Stack {
                 subnets: this.subnets,
             },
             assignPublicIp: true,
-            desiredCount: 1
+            desiredCount: 1,
         });
     }
 }

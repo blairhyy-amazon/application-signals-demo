@@ -10,6 +10,7 @@ interface LoadBalancerStackProps extends StackProps {
 
 export class LoadBalancerStack extends Stack {
     public readonly loadBalancer: elbv2.ApplicationLoadBalancer;
+    public readonly targetGroup: elbv2.ApplicationTargetGroup;
     private readonly LOAD_BALANCER_NAME = 'ecs-load-balancer';
     private readonly TARGET_GROUP_NAME = 'api-gateway-target-group';
 
@@ -27,7 +28,7 @@ export class LoadBalancerStack extends Stack {
             },
         });
 
-        const targetGroup = new elbv2.ApplicationTargetGroup(this, 'ApiGatewayTargetGroup', {
+        this.targetGroup = new elbv2.ApplicationTargetGroup(this, 'ApiGatewayTargetGroup', {
             targetGroupName: this.TARGET_GROUP_NAME,
             vpc: props.vpc,
             port: 8080,
@@ -46,7 +47,7 @@ export class LoadBalancerStack extends Stack {
         this.loadBalancer.addListener('Listener', {
             protocol: elbv2.ApplicationProtocol.HTTP,
             port: 80,
-            defaultTargetGroups: [targetGroup],
+            defaultTargetGroups: [this.targetGroup],
         });
 
         // Output the Load Balancer ARN and DNS

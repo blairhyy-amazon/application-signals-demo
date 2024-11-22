@@ -50,6 +50,7 @@ class ApplicationSignalsECSDemo {
         this.createServers();
         this.createApiGateway();
         this.runServices();
+        this.generateTraffic();
         this.app.synth();
     }
 
@@ -100,6 +101,7 @@ class ApplicationSignalsECSDemo {
         this.ecsClusterStack.createApiGateway(
             this.loadbalancerStack.loadBalancer.loadBalancerDnsName,
             this.adotJavaImageTag,
+            this.loadbalancerStack.targetGroup,
         );
     }
 
@@ -115,12 +117,12 @@ class ApplicationSignalsECSDemo {
         this.ecsClusterStack.runBillingService(
             this.adotPythonImageTag,
             this.rdsDatabaseStack.dbSecret,
-            this.rdsDatabaseStack.rdsInstance.dbInstanceEndpointAddress
+            this.rdsDatabaseStack.rdsInstance.dbInstanceEndpointAddress,
         );
     }
 
-    private generateTraffic(){
-        this.ecsClusterStack.generateTraffic(this.loadbalancerStack.loadBalancer.loadBalancerDnsName)
+    private generateTraffic() {
+        this.ecsClusterStack.generateTraffic(this.loadbalancerStack.loadBalancer.loadBalancerDnsName);
     }
 }
 
