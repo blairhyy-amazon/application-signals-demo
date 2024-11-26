@@ -438,7 +438,27 @@ export class EcsClusterStack extends Stack {
                     },
                     logs: {
                         metrics_collected: {
-                            application_signals: {},
+                            application_signals: {
+                                application_signals: {
+                                    rule: [
+                                        {
+                                            selectors: [
+                                                {
+                                                    dimension: 'RemoteService',
+                                                    match: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761`,
+                                                },
+                                            ],
+                                            replacements: [
+                                                {
+                                                    target_dimension: 'RemoteService',
+                                                    value: 'discovery-server',
+                                                },
+                                            ],
+                                            action: 'replace',
+                                        },
+                                    ],
+                                },
+                            },
                         },
                     },
                 }),
@@ -552,8 +572,25 @@ export class EcsClusterStack extends Stack {
                     },
                     logs: {
                         metrics_collected: {
-                            application_signals: {},
-                        },
+                            application_signals: {
+                                rule: [
+                                    {
+                                        selectors: [
+                                            {
+                                                dimension: 'RemoteService',
+                                                match: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761`,
+                                            },
+                                        ],
+                                        replacements: [
+                                            {
+                                                target_dimension: 'RemoteService',
+                                                value: 'discovery-server',
+                                            },
+                                        ],
+                                        action: 'replace',
+                                    },
+                                ],
+                            },                        },
                     },
                 }),
             },
@@ -597,7 +634,7 @@ export class EcsClusterStack extends Stack {
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${VISITS_SERVICE}-container`, {
             image: ecs.ContainerImage.fromRegistry(
-                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-customers-service`,
+                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-visits-service`,
             ),
             cpu: 256,
             memoryLimitMiB: 512,
@@ -665,7 +702,25 @@ export class EcsClusterStack extends Stack {
                     },
                     logs: {
                         metrics_collected: {
-                            application_signals: {},
+                            application_signals: {
+                                rule: [
+                                    {
+                                        selectors: [
+                                            {
+                                                dimension: 'RemoteService',
+                                                match: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761`,
+                                            },
+                                        ],
+                                        replacements: [
+                                            {
+                                                target_dimension: 'RemoteService',
+                                                value: 'discovery-server',
+                                            },
+                                        ],
+                                        action: 'replace',
+                                    },
+                                ],
+                            },
                         },
                     },
                 }),
@@ -799,8 +854,25 @@ export class EcsClusterStack extends Stack {
                     },
                     logs: {
                         metrics_collected: {
-                            application_signals: {},
-                        },
+                            application_signals: {
+                                rule: [
+                                    {
+                                        selectors: [
+                                            {
+                                                dimension: 'RemoteService',
+                                                match: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761`,
+                                            },
+                                        ],
+                                        replacements: [
+                                            {
+                                                target_dimension: 'RemoteService',
+                                                value: 'discovery-server',
+                                            },
+                                        ],
+                                        action: 'replace',
+                                    },
+                                ],
+                            },                        },
                     },
                 }),
             },
@@ -930,8 +1002,25 @@ export class EcsClusterStack extends Stack {
                     },
                     logs: {
                         metrics_collected: {
-                            application_signals: {},
-                        },
+                            application_signals: {
+                                rule: [
+                                    {
+                                        selectors: [
+                                            {
+                                                dimension: 'RemoteService',
+                                                match: `${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761`,
+                                            },
+                                        ],
+                                        replacements: [
+                                            {
+                                                target_dimension: 'RemoteService',
+                                                value: 'discovery-server',
+                                            },
+                                        ],
+                                        action: 'replace',
+                                    },
+                                ],
+                            },                        },
                     },
                 }),
             },
