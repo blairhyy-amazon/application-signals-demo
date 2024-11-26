@@ -974,7 +974,7 @@ export class EcsClusterStack extends Stack {
         });
 
         // Add init container
-        const initContainer = taskDefinition.addContainer('init-insurance-service-container', {
+        const initContainer = taskDefinition.addContainer('init-billing-service-container', {
             image: ecs.ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-python:${adotPythonImageTag}`,
             ),
