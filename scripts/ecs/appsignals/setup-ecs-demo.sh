@@ -195,9 +195,9 @@ function create_service() {
 }
 
 function run_config_server() {
-  sed -i  "s|\"config-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-config-server\"|" ./sample-app/task-definitions/spring-petclinic-config-server.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-config-server.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-config-server.json
+  sed -i '' "s|\"config-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-config-server\"|" ./sample-app/task-definitions/spring-petclinic-config-server.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-config-server.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-config-server.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-config-server.json > /dev/null
   create_service "config-server"
@@ -206,11 +206,11 @@ function run_config_server() {
 }
 
 function run_discovery_server() {
-  sed -i  "s|\"discovery-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-discovery-server\"|" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
-  sed -i  "s|discovery-service-url|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
+  sed -i '' "s|\"discovery-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-discovery-server\"|" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
+  sed -i '' "s|discovery-service-url|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-discovery-server.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-discovery-server.json > /dev/null
   create_service "discovery-server"
@@ -219,11 +219,11 @@ function run_discovery_server() {
 }
 
 function run_admin_server() {
-  sed -i  "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-admin-server.json
-  sed -i  "s|\"admin-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-admin-server\"|" ./sample-app/task-definitions/spring-petclinic-admin-server.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
+  sed -i '' "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-admin-server.json
+  sed -i '' "s|\"admin-server-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-admin-server\"|" ./sample-app/task-definitions/spring-petclinic-admin-server.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-admin-server.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-admin-server.json > /dev/null
   create_service "admin-server"
@@ -256,12 +256,12 @@ function run_api_gateway() {
     --port 80 \
     --default-actions Type=forward,TargetGroupArn=$api_gateway_target_group_arn > /dev/null
 
-  sed -i  "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
-  sed -i  "s|\"api_gateway_ip\"|\"${LOAD_BALANCER_DNS}\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
-  sed -i  "s|\"api-gateway-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-api-gateway\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|\"api_gateway_ip\"|\"${LOAD_BALANCER_DNS}\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|\"api-gateway-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-api-gateway\"|" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-api-gateway.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-api-gateway.json > /dev/null
 
@@ -281,11 +281,11 @@ function run_api_gateway() {
 }
 
 function run_vets_service() {
-  sed -i  "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-vets-service.json
-  sed -i  "s|\"vets-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-vets-service\"|" ./sample-app/task-definitions/spring-petclinic-vets-service.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
+  sed -i '' "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-vets-service.json
+  sed -i '' "s|\"vets-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-vets-service\"|" ./sample-app/task-definitions/spring-petclinic-vets-service.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-vets-service.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-vets-service.json > /dev/null
   create_service "vets-service"
@@ -294,11 +294,11 @@ function run_vets_service() {
 }
 
 function run_customers_service() {
-  sed -i  "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-customers-service.json
-  sed -i  "s|\"customers-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-customers-service\"|" ./sample-app/task-definitions/spring-petclinic-customers-service.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
+  sed -i '' "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-customers-service.json
+  sed -i '' "s|\"customers-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-customers-service\"|" ./sample-app/task-definitions/spring-petclinic-customers-service.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-customers-service.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-customers-service.json > /dev/null
   create_service "customers-service"
@@ -307,11 +307,11 @@ function run_customers_service() {
 }
 
 function run_visits_service() {
-  sed -i  "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-visits-service.json
-  sed -i  "s|\"visits-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-visits-service\"|" ./sample-app/task-definitions/spring-petclinic-visits-service.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
+  sed -i '' "s|\"adot-java-image\"|\"${adot_java_image}\"|" ./sample-app/task-definitions/spring-petclinic-visits-service.json
+  sed -i '' "s|\"visits-service-image\"|\"${ECR_IMAGE_PREFIX}/springcommunity/spring-petclinic-visits-service\"|" ./sample-app/task-definitions/spring-petclinic-visits-service.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-visits-service.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-visits-service.json > /dev/null
   create_service "visits-service"
@@ -366,17 +366,17 @@ function create_database() {
 }
 
 function run_insurance_service() {
-  sed -i  "s|\"adot-python-image\"|\"${adot_python_image}\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|\"insurance-service-image\"|\"${ECR_IMAGE_PREFIX}/python-petclinic-insurance-service\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|\"adot-python-image\"|\"${adot_python_image}\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|\"insurance-service-image\"|\"${ECR_IMAGE_PREFIX}/python-petclinic-insurance-service\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
 
   rds_endpoint=`aws rds describe-db-instances --db-instance-identifier petclinic-python --query "DBInstances[*].Endpoint.Address" --output text`
-  sed -i  "s|\"db_service_host\"|\"${rds_endpoint}\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
-  sed -i  "s|db-user-password|${master_password}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|\"db_service_host\"|\"${rds_endpoint}\"|" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
+  sed -i '' "s|db-user-password|${master_password}|g" ./sample-app/task-definitions/spring-petclinic-insurance-service.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-insurance-service.json > /dev/null
   create_service "insurance-service"
@@ -385,16 +385,16 @@ function run_insurance_service() {
 }
 
 function run_billing_service() {
-  sed -i  "s|\"adot-python-image\"|\"${adot_python_image}\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-  sed -i  "s|\"billing-service-image\"|\"${ECR_IMAGE_PREFIX}/python-petclinic-billing-service\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-  sed -i  "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|\"adot-python-image\"|\"${adot_python_image}\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|\"billing-service-image\"|\"${ECR_IMAGE_PREFIX}/python-petclinic-billing-service\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|cluster-name|${CLUSTER}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
 
   rds_endpoint=`aws rds describe-db-instances --db-instance-identifier petclinic-python --query "DBInstances[*].Endpoint.Address" --output text`
-  sed -i  "s|\"db_service_host\"|\"${rds_endpoint}\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-    sed -i  "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
-    sed -i  "s|db-user-password|${master_password}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+  sed -i '' "s|\"db_service_host\"|\"${rds_endpoint}\"|" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+    sed -i '' "s|db-user-name|${master_username}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
+    sed -i '' "s|db-user-password|${master_password}|g" ./sample-app/task-definitions/spring-petclinic-billing-service.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/spring-petclinic-billing-service.json > /dev/null
   create_service "billing-service"
@@ -408,10 +408,10 @@ function generate_traffic() {
         --query "LoadBalancers[0].LoadBalancerArn" \
         --output text)
 
-  sed -i  "s|\"discovery-server-url\"|\"http://${LOAD_BALANCER_DNS}:80\"|" ./sample-app/task-definitions/traffic-generator.json
-  sed -i  "s|\"traffic-generator-image\"|\"${ECR_IMAGE_PREFIX}/traffic-generator\"|" ./sample-app/task-definitions/traffic-generator.json
-  sed -i  "s|region-name|${REGION}|g" ./sample-app/task-definitions/traffic-generator.json
-  sed -i  "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/traffic-generator.json
+  sed -i '' "s|\"discovery-server-url\"|\"http://${LOAD_BALANCER_DNS}:80\"|" ./sample-app/task-definitions/traffic-generator.json
+  sed -i '' "s|\"traffic-generator-image\"|\"${ECR_IMAGE_PREFIX}/traffic-generator\"|" ./sample-app/task-definitions/traffic-generator.json
+  sed -i '' "s|region-name|${REGION}|g" ./sample-app/task-definitions/traffic-generator.json
+  sed -i '' "s|000111222333|${ACCOUNT_ID}|g" ./sample-app/task-definitions/traffic-generator.json
 
   aws ecs register-task-definition --cli-input-json file://sample-app/task-definitions/traffic-generator.json > /dev/null
 

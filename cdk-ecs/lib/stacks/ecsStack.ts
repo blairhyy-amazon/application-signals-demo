@@ -83,6 +83,7 @@ export class EcsClusterStack extends Stack {
             value: ecsService.serviceName,
         });
         console.log(`Ecs Service - ${props.serviceName} is created`);
+        return ecsService
     }
 
     createConfigServer() {
@@ -130,7 +131,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    createDiscoveryServer() {
+    createDiscoveryServer(targetGroup: elbv2.ApplicationTargetGroup) {
         // Create a log group
         const discoveryLogGroup = this.logStack.createLogGroup(this.DISCOVERY_SERVER);
 
@@ -170,10 +171,12 @@ export class EcsClusterStack extends Stack {
         });
 
         // Create ECS service
-        this.createService({
+        const service = this.createService({
             serviceName: this.DISCOVERY_SERVER,
             taskDefinition: taskDefinition,
         });
+
+        service.attachToApplicationTargetGroup(targetGroup);
     }
 
     createAdminServer() {
@@ -440,7 +443,7 @@ export class EcsClusterStack extends Stack {
                         metrics_collected: {
                             application_signals: {
                                 application_signals: {
-                                    rule: [
+                                    rules: [
                                         {
                                             selectors: [
                                                 {
@@ -573,7 +576,7 @@ export class EcsClusterStack extends Stack {
                     logs: {
                         metrics_collected: {
                             application_signals: {
-                                rule: [
+                                rules: [
                                     {
                                         selectors: [
                                             {
@@ -703,7 +706,7 @@ export class EcsClusterStack extends Stack {
                     logs: {
                         metrics_collected: {
                             application_signals: {
-                                rule: [
+                                rules: [
                                     {
                                         selectors: [
                                             {
@@ -855,7 +858,7 @@ export class EcsClusterStack extends Stack {
                     logs: {
                         metrics_collected: {
                             application_signals: {
-                                rule: [
+                                rules: [
                                     {
                                         selectors: [
                                             {
@@ -1003,7 +1006,7 @@ export class EcsClusterStack extends Stack {
                     logs: {
                         metrics_collected: {
                             application_signals: {
-                                rule: [
+                                rules: [
                                     {
                                         selectors: [
                                             {
