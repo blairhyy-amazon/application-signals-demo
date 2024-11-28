@@ -61,7 +61,7 @@ class ApplicationSignalsECSDemo {
 
         this.loadbalancerStack = new LoadBalancerStack(this.app, 'LoadBalancerStack', {
             vpc: networkStack.vpc,
-            securityGroup: networkStack.vpcSecurityGroup,
+            securityGroup: networkStack.albSecurityGroup,
         });
 
         this.rdsDatabaseStack = new RdsDatabaseStack(this.app, 'RdsDatabaseStack', {
@@ -81,7 +81,7 @@ class ApplicationSignalsECSDemo {
 
         this.ecsClusterStack = new EcsClusterStack(this.app, 'EcsClusterStack', {
             vpc: networkStack.vpc,
-            securityGroups: [networkStack.vpcSecurityGroup],
+            securityGroups: [networkStack.ecsSecurityGroup],
             ecsTaskRole: iamRolesStack.ecsTaskRole,
             ecsTaskExecutionRole: iamRolesStack.ecsTaskExecutionRole,
             subnets: networkStack.vpc.publicSubnets,
