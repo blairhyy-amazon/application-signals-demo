@@ -15,7 +15,6 @@ interface EcsClusterStackProps extends StackProps {
     readonly ecsTaskRole: iam.Role;
     readonly ecsTaskExecutionRole: iam.Role;
     readonly subnets: ec2.ISubnet[];
-    readonly ecrImagePrefix: string;
     readonly serviceDiscoveryStack: ServiceDiscoveryStack;
     readonly logStack: LogStack;
 }
@@ -60,7 +59,6 @@ export class EcsClusterStack extends Stack {
     private VET_SERVICE_CW_CONFIG: MetricTransformationConfig;
     private CUSTOMERS_SERVICE_CW_CONFIG: MetricTransformationConfig;
 
-
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
         super(scope, id, props);
 
@@ -69,11 +67,12 @@ export class EcsClusterStack extends Stack {
             clusterName: this.CLUSTER_NAME,
         });
 
+        this.ecrImagePrefix = `${this.account}.dkr.ecr.${this.region}.amazonaws.com`; // retrive ECR image from the private repository
+
         this.securityGroups = props.securityGroups;
         this.ecsTaskRole = props.ecsTaskRole;
         this.ecsTaskExecutionRole = props.ecsTaskExecutionRole;
         this.subnets = props.subnets;
-        this.ecrImagePrefix = props.ecrImagePrefix;
         this.serviceDiscoveryStack = props.serviceDiscoveryStack;
         this.logStack = props.logStack;
         this.replaceRemoteServicesNames();

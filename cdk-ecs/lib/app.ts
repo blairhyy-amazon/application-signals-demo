@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as assert from 'assert';
 
-import { getECRImagePrefix, getLatestAdotJavaTag, getLatestAdotPythonTag } from './utils';
+import { getLatestAdotJavaTag, getLatestAdotPythonTag } from './utils';
 import { EcsClusterStack } from './stacks/ecsStack';
 import { IamRolesStack } from './stacks/iamRolesStack';
 import { NetworkStack } from './stacks/networkStack';
@@ -30,18 +30,14 @@ class ApplicationSignalsECSDemo {
     }
 
     public async runApp(): Promise<void> {
-        const ECR_REGION = 'us-east-1';
-        const [ecrImagePrefix, adotJavaImageTag, adotPythonImageTag] = await Promise.all([
-            getECRImagePrefix(ECR_REGION),
+        const [adotJavaImageTag, adotPythonImageTag] = await Promise.all([
             getLatestAdotJavaTag(),
             getLatestAdotPythonTag(),
         ]);
 
-        assert(ecrImagePrefix !== '', 'ECR Image Prefix is empty');
         assert(adotJavaImageTag !== '', 'ADOT Java Image Tag is empty');
         assert(adotPythonImageTag !== '', 'ADOT Python Image Tag is empty');
 
-        this.ecrImagePrefix = ecrImagePrefix;
         this.adotJavaImageTag = adotJavaImageTag;
         this.adotPythonImageTag = adotPythonImageTag;
 
@@ -85,7 +81,6 @@ class ApplicationSignalsECSDemo {
             ecsTaskRole: iamRolesStack.ecsTaskRole,
             ecsTaskExecutionRole: iamRolesStack.ecsTaskExecutionRole,
             subnets: networkStack.vpc.publicSubnets,
-            ecrImagePrefix: this.ecrImagePrefix,
             serviceDiscoveryStack: this.serviceDiscoveryStack,
             logStack: this.logStack,
         });
