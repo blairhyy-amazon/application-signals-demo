@@ -1,5 +1,5 @@
-import * as cdk from 'aws-cdk-lib';
 import * as assert from 'assert';
+import { App } from 'aws-cdk-lib';
 
 import { getLatestAdotJavaTag, getLatestAdotPythonTag } from './utils';
 import { EcsClusterStack } from './stacks/ecsStack';
@@ -11,8 +11,7 @@ import { LoadBalancerStack } from './stacks/loadbalancerStack';
 import { RdsDatabaseStack } from './stacks/databaseStack';
 
 class ApplicationSignalsECSDemo {
-    private readonly app: cdk.App;
-    private ecrImagePrefix: string;
+    private readonly app: App;
     private adotJavaImageTag: string;
     private adotPythonImageTag: string;
     private ecsClusterStack: EcsClusterStack;
@@ -22,8 +21,7 @@ class ApplicationSignalsECSDemo {
     private rdsDatabaseStack: RdsDatabaseStack;
 
     constructor() {
-        this.app = new cdk.App();
-        this.ecrImagePrefix = '';
+        this.app = new App();
         this.adotJavaImageTag = '';
         this.adotPythonImageTag = '';
         this.runApp();

@@ -1,19 +1,19 @@
-import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as servicediscovery from 'aws-cdk-lib/aws-servicediscovery';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
+import { PrivateDnsNamespace, Service, RoutingPolicy, DnsRecordType } from 'aws-cdk-lib/aws-servicediscovery';
+import { Vpc } from 'aws-cdk-lib/aws-ec2';
 
 interface ServiceDiscoveryStackProps extends StackProps {
-    readonly vpc: ec2.Vpc;
+    readonly vpc: Vpc;
 }
 
 export class ServiceDiscoveryStack extends Stack {
-    public readonly namespace: servicediscovery.PrivateDnsNamespace;
+    public readonly namespace: PrivateDnsNamespace;
 
     constructor(scope: Construct, id: string, props: ServiceDiscoveryStackProps) {
         super(scope, id);
 
-        this.namespace = new servicediscovery.PrivateDnsNamespace(this, 'Namespace', {
+        this.namespace = new PrivateDnsNamespace(this, 'Namespace', {
             vpc: props.vpc,
             name: 'ecs-pet-clinic',
         });
@@ -23,14 +23,14 @@ export class ServiceDiscoveryStack extends Stack {
 
     createService(serviceName: string) {
         const dnsService = `${serviceName}-DNS`;
-        return new servicediscovery.Service(this, dnsService, {
+        return new Service(this, dnsService, {
             namespace: this.namespace,
             name: dnsService,
             customHealthCheck: {
                 failureThreshold: 2, // TODO: A known issue that failure threshold cannot be set other than 1: https://github.com/hashicorp/terraform-provider-aws/issues/35559
             },
-            routingPolicy: servicediscovery.RoutingPolicy.WEIGHTED,
-            dnsRecordType: servicediscovery.DnsRecordType.A,
+            routingPolicy: RoutingPolicy.WEIGHTED,
+            dnsRecordType: DnsRecordType.A,
             dnsTtl: Duration.seconds(300),
         });
     }

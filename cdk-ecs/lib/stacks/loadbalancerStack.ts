@@ -1,17 +1,23 @@
-import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
+import {
+    ApplicationTargetGroup,
+    TargetType,
+    ApplicationProtocol,
+    ApplicationLoadBalancer,
+    Protocol,
+} from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import { Construct } from 'constructs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
+import { Vpc, SecurityGroup, SubnetType } from 'aws-cdk-lib/aws-ec2';
 
 interface LoadBalancerStackProps extends StackProps {
-    vpc: ec2.Vpc;
-    securityGroup: ec2.SecurityGroup;
+    vpc: Vpc;
+    securityGroup: SecurityGroup;
 }
 
 export class LoadBalancerStack extends Stack {
-    public readonly loadBalancer: elbv2.ApplicationLoadBalancer;
-    public readonly targetGroup: elbv2.ApplicationTargetGroup;
-    public readonly eurekatargetGroup: elbv2.ApplicationTargetGroup;
+    public readonly loadBalancer: ApplicationLoadBalancer;
+    public readonly targetGroup: ApplicationTargetGroup;
+    public readonly eurekatargetGroup: ApplicationTargetGroup;
     private readonly LOAD_BALANCER_NAME = 'ecs-load-balancer';
     private readonly TARGET_GROUP_NAME = 'api-gateway-target-group';
 
@@ -19,25 +25,25 @@ export class LoadBalancerStack extends Stack {
         super(scope, id, props);
 
         // Create Application Load Balancer (ALB)
-        this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
+        this.loadBalancer = new ApplicationLoadBalancer(this, 'LoadBalancer', {
             loadBalancerName: this.LOAD_BALANCER_NAME,
             vpc: props.vpc,
             internetFacing: true,
             securityGroup: props.securityGroup,
             vpcSubnets: {
-                subnetType: ec2.SubnetType.PUBLIC,
+                subnetType: SubnetType.PUBLIC,
             },
         });
 
-        this.targetGroup = new elbv2.ApplicationTargetGroup(this, 'ApiGatewayTargetGroup', {
+        this.targetGroup = new ApplicationTargetGroup(this, 'ApiGatewayTargetGroup', {
             targetGroupName: this.TARGET_GROUP_NAME,
             vpc: props.vpc,
             port: 8080,
-            protocol: elbv2.ApplicationProtocol.HTTP,
-            targetType: elbv2.TargetType.IP,
+            protocol: ApplicationProtocol.HTTP,
+            targetType: TargetType.IP,
             healthCheck: {
                 path: '/',
-                protocol: elbv2.Protocol.HTTP,
+                protocol: Protocol.HTTP,
                 healthyThresholdCount: 5,
                 unhealthyThresholdCount: 2,
                 interval: Duration.seconds(240),
@@ -45,15 +51,15 @@ export class LoadBalancerStack extends Stack {
             },
         });
 
-        this.eurekatargetGroup = new elbv2.ApplicationTargetGroup(this, 'EurekaApiGatewayTargetGroup', {
+        this.eurekatargetGroup = new ApplicationTargetGroup(this, 'EurekaApiGatewayTargetGroup', {
             targetGroupName: 'eureka-target-group',
             vpc: props.vpc,
             port: 8761,
-            protocol: elbv2.ApplicationProtocol.HTTP,
-            targetType: elbv2.TargetType.IP,
+            protocol: ApplicationProtocol.HTTP,
+            targetType: TargetType.IP,
             healthCheck: {
                 path: '/',
-                protocol: elbv2.Protocol.HTTP,
+                protocol: Protocol.HTTP,
                 healthyThresholdCount: 5,
                 unhealthyThresholdCount: 2,
                 interval: Duration.seconds(240),
@@ -62,13 +68,13 @@ export class LoadBalancerStack extends Stack {
         });
 
         this.loadBalancer.addListener('eurekaListener', {
-            protocol: elbv2.ApplicationProtocol.HTTP,
+            protocol: ApplicationProtocol.HTTP,
             port: 8111,
             defaultTargetGroups: [this.eurekatargetGroup],
         });
 
         this.loadBalancer.addListener('Listener', {
-            protocol: elbv2.ApplicationProtocol.HTTP,
+            protocol: ApplicationProtocol.HTTP,
             port: 80,
             defaultTargetGroups: [this.targetGroup],
         });

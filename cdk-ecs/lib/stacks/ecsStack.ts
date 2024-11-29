@@ -1,27 +1,37 @@
+import { ApplicationTargetGroup } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import { CfnOutput, Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import { Role } from 'aws-cdk-lib/aws-iam';
+import { Secret as SmSecret } from 'aws-cdk-lib/aws-secretsmanager';
+import {
+    TaskDefinition,
+    Cluster,
+    FargateService,
+    Compatibility,
+    NetworkMode,
+    ContainerImage,
+    LogDrivers,
+    Protocol,
+    Secret as EcsSecret,
+} from 'aws-cdk-lib/aws-ecs';
+import { Vpc, ISubnet, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
 
 import { ServiceDiscoveryStack } from './servicediscoveryStack';
 import { LogStack } from './logStack';
 
 interface EcsClusterStackProps extends StackProps {
-    readonly vpc: ec2.Vpc;
-    readonly securityGroups: ec2.SecurityGroup[];
-    readonly ecsTaskRole: iam.Role;
-    readonly ecsTaskExecutionRole: iam.Role;
-    readonly subnets: ec2.ISubnet[];
+    readonly vpc: Vpc;
+    readonly securityGroups: SecurityGroup[];
+    readonly ecsTaskRole: Role;
+    readonly ecsTaskExecutionRole: Role;
+    readonly subnets: ISubnet[];
     readonly serviceDiscoveryStack: ServiceDiscoveryStack;
     readonly logStack: LogStack;
 }
 
 interface CreateServiceProps {
     readonly serviceName: string;
-    readonly taskDefinition: ecs.TaskDefinition;
+    readonly taskDefinition: TaskDefinition;
 }
 
 type MetricTransformationConfig = {
@@ -37,11 +47,11 @@ type MetricTransformationConfig = {
 };
 
 export class EcsClusterStack extends Stack {
-    public readonly cluster: ecs.Cluster;
-    private readonly securityGroups: ec2.SecurityGroup[];
-    private readonly ecsTaskRole: iam.Role;
-    private readonly ecsTaskExecutionRole: iam.Role;
-    private readonly subnets: ec2.ISubnet[];
+    public readonly cluster: Cluster;
+    private readonly securityGroups: SecurityGroup[];
+    private readonly ecsTaskRole: Role;
+    private readonly ecsTaskExecutionRole: Role;
+    private readonly subnets: ISubnet[];
     private readonly ecrImagePrefix: string;
     private readonly serviceDiscoveryStack: ServiceDiscoveryStack;
     private readonly logStack: LogStack;
@@ -62,7 +72,7 @@ export class EcsClusterStack extends Stack {
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
         super(scope, id, props);
 
-        this.cluster = new ecs.Cluster(this, 'EcsCluster', {
+        this.cluster = new Cluster(this, 'EcsCluster', {
             vpc: props.vpc,
             clusterName: this.CLUSTER_NAME,
         });
@@ -85,7 +95,7 @@ export class EcsClusterStack extends Stack {
         const DNSService = this.serviceDiscoveryStack.createService(props.serviceName);
 
         // 2, create ECS service
-        const ecsService = new ecs.FargateService(this, `${props.serviceName}-ecs-service`, {
+        const ecsService = new FargateService(this, `${props.serviceName}-ecs-service`, {
             serviceName: props.serviceName,
             taskDefinition: props.taskDefinition,
             cluster: this.cluster,
@@ -112,28 +122,26 @@ export class EcsClusterStack extends Stack {
         const configLogGroup = this.logStack.createLogGroup(this.CONFIG_SERVER);
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.CONFIG_SERVER}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.CONFIG_SERVER}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.CONFIG_SERVER,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
 
         // Add Container to Task Definition
         const container = taskDefinition.addContainer(`${this.CONFIG_SERVER}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
-                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-config-server`,
-            ),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-config-server`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
             environment: {
                 SPRING_PROFILES_ACTIVE: 'ecs',
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: configLogGroup,
             }),
@@ -142,7 +150,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         container.addPortMappings({
             containerPort: 8888,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         // Create ECS service
@@ -152,24 +160,24 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    createDiscoveryServer(targetGroup: elbv2.ApplicationTargetGroup) {
+    createDiscoveryServer(targetGroup: ApplicationTargetGroup) {
         // Create a log group
         const discoveryLogGroup = this.logStack.createLogGroup(this.DISCOVERY_SERVER);
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.DISCOVERY_SERVER}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.DISCOVERY_SERVER}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.DISCOVERY_SERVER,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
 
         // Add Container to Task Definition
         const container = taskDefinition.addContainer(`${this.DISCOVERY_SERVER}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `${this.ecrImagePrefix}/springcommunity/spring-petclinic-discovery-server`,
             ),
             cpu: 256,
@@ -179,7 +187,7 @@ export class EcsClusterStack extends Stack {
                 SPRING_PROFILES_ACTIVE: 'ecs',
                 CONFIG_SERVER_URL: `http://${this.CONFIG_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8888`,
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: discoveryLogGroup,
             }),
@@ -188,7 +196,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         container.addPortMappings({
             containerPort: 8761,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         // Create ECS service
@@ -205,21 +213,19 @@ export class EcsClusterStack extends Stack {
         const adminLogGroup = this.logStack.createLogGroup(this.ADMIN_SERVER);
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.ADMIN_SERVER}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.ADMIN_SERVER}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.ADMIN_SERVER,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
 
         // Add Container to Task Definition
         const container = taskDefinition.addContainer(`${this.ADMIN_SERVER}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
-                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-admin-server`,
-            ),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-admin-server`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
@@ -229,7 +235,7 @@ export class EcsClusterStack extends Stack {
                 DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
                 ADMIN_IP: `${this.ADMIN_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: adminLogGroup,
             }),
@@ -238,7 +244,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         container.addPortMappings({
             containerPort: 9090,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         // Create ECS service
@@ -248,18 +254,18 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string, targetGroup: elbv2.ApplicationTargetGroup) {
+    createApiGateway(loadBalancerDNS: string, adotJavaImageTag: string, targetGroup: ApplicationTargetGroup) {
         // Create a log group
         const apiGatewayLogGroup = this.logStack.createLogGroup(this.API_GATEWAY);
         const cwAgentApiGatewayLogGroup = this.logStack.createLogGroup('ecs-cwagent-api-gateway');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.API_GATEWAY}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.API_GATEWAY}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.API_GATEWAY,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -271,9 +277,7 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${this.API_GATEWAY}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
-                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-api-gateway`,
-            ),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-api-gateway`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
@@ -293,7 +297,7 @@ export class EcsClusterStack extends Stack {
                 DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
                 API_GATEWAY_IP: loadBalancerDNS, // use load balancer dns
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: apiGatewayLogGroup,
             }),
@@ -302,7 +306,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8080,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -313,7 +317,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-api-gateway-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -328,7 +332,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-api-gateway-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -354,13 +358,13 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentApiGatewayLogGroup,
             }),
         });
 
-        const service = new ecs.FargateService(this, `${this.API_GATEWAY}-ecs-service`, {
+        const service = new FargateService(this, `${this.API_GATEWAY}-ecs-service`, {
             serviceName: this.API_GATEWAY,
             taskDefinition: taskDefinition,
             cluster: this.cluster,
@@ -382,12 +386,12 @@ export class EcsClusterStack extends Stack {
         const cwAgentVetsServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-vets-service');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.VETS_SERVICE}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.VETS_SERVICE}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.VETS_SERVICE,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -399,9 +403,7 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${this.VETS_SERVICE}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
-                `${this.ecrImagePrefix}/springcommunity/spring-petclinic-vets-service`,
-            ),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/springcommunity/spring-petclinic-vets-service`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
@@ -421,7 +423,7 @@ export class EcsClusterStack extends Stack {
                 DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
                 VETS_SERVICE_IP: `${this.VETS_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: vetsLogGroup,
             }),
@@ -430,7 +432,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8083,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -441,7 +443,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-vets-service-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -456,7 +458,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-vets-service-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -478,7 +480,7 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentVetsServiceLogGroup,
             }),
@@ -497,12 +499,12 @@ export class EcsClusterStack extends Stack {
         const cwAgentCustomersServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-customers-service');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.CUSTOMERS_SERVICE}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.CUSTOMERS_SERVICE}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.CUSTOMERS_SERVICE,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -514,7 +516,7 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${this.CUSTOMERS_SERVICE}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `${this.ecrImagePrefix}/springcommunity/spring-petclinic-customers-service`,
             ),
             cpu: 256,
@@ -537,7 +539,7 @@ export class EcsClusterStack extends Stack {
                 DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
                 CUSTOMER_SERVICE_IP: `${this.CUSTOMERS_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: customersLogGroup,
             }),
@@ -546,7 +548,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8081,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -557,7 +559,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-customers-service-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -572,7 +574,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-customers-service-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -592,7 +594,7 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentCustomersServiceLogGroup,
             }),
@@ -611,12 +613,12 @@ export class EcsClusterStack extends Stack {
         const cwAgentVisitsServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-visits-service');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${this.VISITS_SERVICE}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${this.VISITS_SERVICE}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: this.VISITS_SERVICE,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -628,7 +630,7 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${this.VISITS_SERVICE}-container`, {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `${this.ecrImagePrefix}/springcommunity/spring-petclinic-visits-service`,
             ),
             cpu: 256,
@@ -650,7 +652,7 @@ export class EcsClusterStack extends Stack {
                 DISCOVERY_SERVER_URL: `http://${this.DISCOVERY_SERVER}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}:8761/eureka`,
                 VISITS_SERVICE_IP: `${this.VISITS_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: visitsLogGroup,
             }),
@@ -659,7 +661,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8082,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -670,7 +672,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-visits-service-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-java:${adotJavaImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -685,7 +687,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-visits-service-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -705,7 +707,7 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentVisitsServiceLogGroup,
             }),
@@ -718,7 +720,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    runInsuranceService(adotPythonImageTag: string, dbSecret: secretsmanager.Secret, rds_endpoint: string) {
+    runInsuranceService(adotPythonImageTag: string, dbSecret: SmSecret, rds_endpoint: string) {
         const INSURANCE_SERVICE = 'pet-clinic-insurance-service';
 
         // Create a log group
@@ -726,12 +728,12 @@ export class EcsClusterStack extends Stack {
         const cwAgentInsuranceServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-insurance-service');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${INSURANCE_SERVICE}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${INSURANCE_SERVICE}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: INSURANCE_SERVICE,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -743,13 +745,13 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${INSURANCE_SERVICE}-container`, {
-            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-insurance-service`),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-insurance-service`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
             secrets: {
-                DB_USER: ecs.Secret.fromSecretsManager(dbSecret, 'username'),
-                DB_USER_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
+                DB_USER: EcsSecret.fromSecretsManager(dbSecret, 'username'),
+                DB_USER_PASSWORD: EcsSecret.fromSecretsManager(dbSecret, 'password'),
             },
             environment: {
                 DB_SECRET_ARN: dbSecret.secretArn,
@@ -774,7 +776,7 @@ export class EcsClusterStack extends Stack {
                 DB_SERVICE_HOST: rds_endpoint,
                 DB_SERVICE_PORT: '5432',
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: insuranceLogGroup,
             }),
@@ -795,7 +797,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8000,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -806,7 +808,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-insurance-service-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-python:${adotPythonImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -821,7 +823,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-insurance-service-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -841,7 +843,7 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentInsuranceServiceLogGroup,
             }),
@@ -854,7 +856,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    runBillingService(adotPythonImageTag: string, dbSecret: secretsmanager.Secret, rds_endpoint: string) {
+    runBillingService(adotPythonImageTag: string, dbSecret: SmSecret, rds_endpoint: string) {
         const BILLING_SERVICE = 'pet-clinic-billing-service';
 
         // Create a log group
@@ -862,12 +864,12 @@ export class EcsClusterStack extends Stack {
         const cwAgentBillingServiceLogGroup = this.logStack.createLogGroup('ecs-cwagent-billing-service');
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${BILLING_SERVICE}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${BILLING_SERVICE}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: BILLING_SERVICE,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
@@ -879,13 +881,13 @@ export class EcsClusterStack extends Stack {
 
         // Add Container to Task Definition
         const mainContainer = taskDefinition.addContainer(`${BILLING_SERVICE}-container`, {
-            image: ecs.ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-billing-service`),
+            image: ContainerImage.fromRegistry(`${this.ecrImagePrefix}/python-petclinic-billing-service`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
             secrets: {
-                DB_USER: ecs.Secret.fromSecretsManager(dbSecret, 'username'),
-                DB_USER_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
+                DB_USER: EcsSecret.fromSecretsManager(dbSecret, 'username'),
+                DB_USER_PASSWORD: EcsSecret.fromSecretsManager(dbSecret, 'password'),
             },
             environment: {
                 DB_SECRET_ARN: dbSecret.secretArn,
@@ -911,7 +913,7 @@ export class EcsClusterStack extends Stack {
                 DB_SERVICE_HOST: rds_endpoint,
                 DB_SERVICE_PORT: '5432',
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: billingLogGroup,
             }),
@@ -928,7 +930,7 @@ export class EcsClusterStack extends Stack {
         // Add Port Mapping
         mainContainer.addPortMappings({
             containerPort: 8800,
-            protocol: ecs.Protocol.TCP,
+            protocol: Protocol.TCP,
         });
 
         mainContainer.addMountPoints({
@@ -939,7 +941,7 @@ export class EcsClusterStack extends Stack {
 
         // Add init container
         const initContainer = taskDefinition.addContainer('init-billing-service-container', {
-            image: ecs.ContainerImage.fromRegistry(
+            image: ContainerImage.fromRegistry(
                 `public.ecr.aws/aws-observability/adot-autoinstrumentation-python:${adotPythonImageTag}`,
             ),
             essential: false, // The container will stop with exit 0 after it completes.
@@ -954,7 +956,7 @@ export class EcsClusterStack extends Stack {
 
         // Add CloudWatch agent container
         taskDefinition.addContainer('ecs-cwagent-billing-service-container', {
-            image: ecs.ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
+            image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
             environment: {
@@ -974,7 +976,7 @@ export class EcsClusterStack extends Stack {
                 }),
             },
 
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: cwAgentBillingServiceLogGroup,
             }),
@@ -992,19 +994,19 @@ export class EcsClusterStack extends Stack {
         const trafficGeneratorLogGroup = this.logStack.createLogGroup(TRAFFIC_GENERATOR);
 
         // Create ECS task definition
-        const taskDefinition = new ecs.TaskDefinition(this, `${TRAFFIC_GENERATOR}-task`, {
+        const taskDefinition = new TaskDefinition(this, `${TRAFFIC_GENERATOR}-task`, {
             cpu: '256',
             memoryMiB: '512',
-            compatibility: ecs.Compatibility.FARGATE,
+            compatibility: Compatibility.FARGATE,
             family: TRAFFIC_GENERATOR,
-            networkMode: ecs.NetworkMode.AWS_VPC,
+            networkMode: NetworkMode.AWS_VPC,
             taskRole: this.ecsTaskRole,
             executionRole: this.ecsTaskExecutionRole,
         });
 
         // Add Container to Task Definition
         taskDefinition.addContainer(`${TRAFFIC_GENERATOR}-container`, {
-            image: ecs.ContainerImage.fromRegistry(`public.ecr.aws/u8q5x3l1/traffic-generator`),
+            image: ContainerImage.fromRegistry(`public.ecr.aws/u8q5x3l1/traffic-generator`),
             cpu: 256,
             memoryLimitMiB: 512,
             essential: true,
@@ -1017,13 +1019,13 @@ export class EcsClusterStack extends Stack {
                 LOW_LOAD_MAX: '60',
                 LOW_LOAD_MIN: '30',
             },
-            logging: ecs.LogDrivers.awsLogs({
+            logging: LogDrivers.awsLogs({
                 streamPrefix: 'ecs',
                 logGroup: trafficGeneratorLogGroup,
             }),
         });
 
-        new ecs.FargateService(this, `${TRAFFIC_GENERATOR}-ecs-service`, {
+        new FargateService(this, `${TRAFFIC_GENERATOR}-ecs-service`, {
             serviceName: TRAFFIC_GENERATOR,
             taskDefinition: taskDefinition,
             cluster: this.cluster,

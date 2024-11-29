@@ -1,20 +1,26 @@
-import { StackProps, Stack, CfnOutput, Duration, RemovalPolicy, Tags } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as rds from 'aws-cdk-lib/aws-rds';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import {
+    DatabaseInstance,
+    SubnetGroup,
+    Credentials,
+    DatabaseInstanceEngine,
+    PostgresEngineVersion,
+    StorageType,
+} from 'aws-cdk-lib/aws-rds';
+import { Secret } from 'aws-cdk-lib/aws-secretsmanager';
+import { StackProps, Stack, CfnOutput, Duration, RemovalPolicy, Tags } from 'aws-cdk-lib';
+import { Vpc, SecurityGroup, SubnetType, InstanceType, InstanceClass, InstanceSize } from 'aws-cdk-lib/aws-ec2';
 
 interface RdsDatabaseStackProps extends StackProps {
-    readonly vpc: ec2.Vpc;
-    readonly rdsSecurityGroup: ec2.SecurityGroup;
+    readonly vpc: Vpc;
+    readonly rdsSecurityGroup: SecurityGroup;
 }
 
 export class RdsDatabaseStack extends Stack {
-    private readonly vpc: ec2.Vpc;
+    private readonly vpc: Vpc;
     private readonly DB_INSTANCE_IDENTIFIER: string = 'petclinic-python';
-    public readonly rdsInstance: rds.DatabaseInstance;
-    public readonly dbSecret: secretsmanager.Secret;
+    public readonly rdsInstance: DatabaseInstance;
+    public readonly dbSecret: Secret;
 
     constructor(scope: Construct, id: string, props: RdsDatabaseStackProps) {
         super(scope, id, props);
@@ -22,18 +28,18 @@ export class RdsDatabaseStack extends Stack {
         this.vpc = props.vpc;
 
         // Create DB Subnet Group
-        const dbSubnetGroup = new rds.SubnetGroup(this, 'MyDBSubnetGroup', {
+        const dbSubnetGroup = new SubnetGroup(this, 'MyDBSubnetGroup', {
             vpc: this.vpc,
             description: 'Subnet group for RDS',
             subnetGroupName: 'my-db-subnet-group',
             vpcSubnets: {
-                subnetType: ec2.SubnetType.PRIVATE_ISOLATED, // Ensure private subnets with NAT are used
+                subnetType: SubnetType.PRIVATE_ISOLATED, // Ensure private subnets with NAT are used
             },
             removalPolicy: RemovalPolicy.DESTROY,
         });
 
         // Create a Secret for the database credentials
-        this.dbSecret = new secretsmanager.Secret(this, 'DBSecret', {
+        this.dbSecret = new Secret(this, 'DBSecret', {
             secretName: 'PetClinicDBCredentials',
             generateSecretString: {
                 secretStringTemplate: JSON.stringify({ username: 'root' }),
@@ -44,21 +50,21 @@ export class RdsDatabaseStack extends Stack {
         });
 
         // Create database instance
-        this.rdsInstance = new rds.DatabaseInstance(this, 'MyDatabase', {
+        this.rdsInstance = new DatabaseInstance(this, 'MyDatabase', {
             vpc: this.vpc,
-            credentials: rds.Credentials.fromSecret(this.dbSecret),
+            credentials: Credentials.fromSecret(this.dbSecret),
             vpcSubnets: {
-                subnetType: ec2.SubnetType.PRIVATE_ISOLATED, // Ensure private subnets with NAT are used
+                subnetType: SubnetType.PRIVATE_ISOLATED, // Ensure private subnets with NAT are used
             },
             publiclyAccessible: false,
             instanceIdentifier: this.DB_INSTANCE_IDENTIFIER,
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO), // db.t3.micro
-            engine: rds.DatabaseInstanceEngine.postgres({
-                version: rds.PostgresEngineVersion.VER_14,
+            instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO), // db.t3.micro
+            engine: DatabaseInstanceEngine.postgres({
+                version: PostgresEngineVersion.VER_14,
             }),
             allocatedStorage: 20, // 20 GB allocated storage
             maxAllocatedStorage: 25,
-            storageType: rds.StorageType.GP2,
+            storageType: StorageType.GP2,
             subnetGroup: dbSubnetGroup,
             securityGroups: [props.rdsSecurityGroup],
             multiAz: false, // Disable Multi-AZ
