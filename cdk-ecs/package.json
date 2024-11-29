@@ -6,7 +6,8 @@
         "watch": "tsc -w",
         "test": "jest",
         "cdk": "cdk",
-        "clean": "rm -rf node_modules && rm -rf ./cdk.out"
+        "clean": "rm -rf node_modules && rm -rf ./cdk.out",
+        "lint": "eslint . "
     },
     "devDependencies": {
         "@types/jest": "^29.5.14",
