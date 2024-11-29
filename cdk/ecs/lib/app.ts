@@ -86,7 +86,7 @@ class ApplicationSignalsECSDemo {
 
     private createServers() {
         this.ecsClusterStack.createConfigServer();
-        this.ecsClusterStack.createDiscoveryServer(this.loadbalancerStack.eurekatargetGroup);
+        this.ecsClusterStack.createDiscoveryServer();
         this.ecsClusterStack.createAdminServer();
     }
 

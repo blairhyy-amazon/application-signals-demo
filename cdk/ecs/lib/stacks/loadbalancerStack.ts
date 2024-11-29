@@ -17,7 +17,6 @@ interface LoadBalancerStackProps extends StackProps {
 export class LoadBalancerStack extends Stack {
     public readonly loadBalancer: ApplicationLoadBalancer;
     public readonly targetGroup: ApplicationTargetGroup;
-    public readonly eurekatargetGroup: ApplicationTargetGroup;
     private readonly LOAD_BALANCER_NAME = 'ecs-load-balancer';
     private readonly TARGET_GROUP_NAME = 'api-gateway-target-group';
 
@@ -49,28 +48,6 @@ export class LoadBalancerStack extends Stack {
                 interval: Duration.seconds(240),
                 timeout: Duration.seconds(60),
             },
-        });
-
-        this.eurekatargetGroup = new ApplicationTargetGroup(this, 'EurekaApiGatewayTargetGroup', {
-            targetGroupName: 'eureka-target-group',
-            vpc: props.vpc,
-            port: 8761,
-            protocol: ApplicationProtocol.HTTP,
-            targetType: TargetType.IP,
-            healthCheck: {
-                path: '/',
-                protocol: Protocol.HTTP,
-                healthyThresholdCount: 5,
-                unhealthyThresholdCount: 2,
-                interval: Duration.seconds(240),
-                timeout: Duration.seconds(60),
-            },
-        });
-
-        this.loadBalancer.addListener('eurekaListener', {
-            protocol: ApplicationProtocol.HTTP,
-            port: 8111,
-            defaultTargetGroups: [this.eurekatargetGroup],
         });
 
         this.loadBalancer.addListener('Listener', {

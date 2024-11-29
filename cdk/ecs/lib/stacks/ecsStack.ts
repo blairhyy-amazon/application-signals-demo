@@ -114,7 +114,6 @@ export class EcsClusterStack extends Stack {
             value: ecsService.serviceName,
         });
         console.log(`Ecs Service - ${props.serviceName} is created`);
-        return ecsService;
     }
 
     createConfigServer() {
@@ -160,7 +159,7 @@ export class EcsClusterStack extends Stack {
         });
     }
 
-    createDiscoveryServer(targetGroup: ApplicationTargetGroup) {
+    createDiscoveryServer() {
         // Create a log group
         const discoveryLogGroup = this.logStack.createLogGroup(this.DISCOVERY_SERVER);
 
@@ -200,12 +199,10 @@ export class EcsClusterStack extends Stack {
         });
 
         // Create ECS service
-        const service = this.createService({
+        this.createService({
             serviceName: this.DISCOVERY_SERVER,
             taskDefinition: taskDefinition,
         });
-
-        service.attachToApplicationTargetGroup(targetGroup);
     }
 
     createAdminServer() {
@@ -471,9 +468,7 @@ export class EcsClusterStack extends Stack {
                     logs: {
                         metrics_collected: {
                             application_signals: {
-                                application_signals: {
-                                    rules: [this.DISCOVERY_SERVER_CW_CONFIG, this.CONFIG_SERVER_CW_CONFIG],
-                                },
+                                rules: [this.DISCOVERY_SERVER_CW_CONFIG, this.CONFIG_SERVER_CW_CONFIG],
                             },
                         },
                     },
