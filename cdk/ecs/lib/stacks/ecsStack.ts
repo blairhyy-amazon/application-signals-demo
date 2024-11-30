@@ -632,6 +632,7 @@ export class EcsClusterStack extends Stack {
             memoryLimitMiB: 512,
             essential: true,
             environment: {
+                AWS_DEFAULT_REGION: this.region,
                 OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
                 OTEL_LOGS_EXPORTER: 'none',
                 OTEL_TRACES_SAMPLER: 'xray',

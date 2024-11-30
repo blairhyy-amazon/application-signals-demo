@@ -40,11 +40,11 @@ function delete_resources() {
 
   run_cdk destroy
 
-# TODO: Reimplement resources deletion as current Sample App in ECS failed to create these resources.
-#  # delete resources created by the sample app itself
-#  aws sqs delete-queue --queue-url $(aws sqs get-queue-url --queue-name apm_test --query 'QueueUrl' --output text)
-#  aws kinesis delete-stream --stream-name apm_test
-#  aws dynamodb delete-table --table-name apm_test
+  # delete resources created by the sample app itself
+  aws sqs delete-queue --queue-url $(aws sqs get-queue-url --queue-name apm_test --query 'QueueUrl' --output text)
+  aws kinesis delete-stream --stream-name apm_test
+  aws dynamodb delete-table --table-name apm_test
+  # TODO: Reimplement resources deletion as current Sample App in ECS has issues creating these resources in the region.
 #  aws dynamodb delete-table --table-name BillingInfo
 #  aws dynamodb delete-table --table-name PetClinicPayment
 
