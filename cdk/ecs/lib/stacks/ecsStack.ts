@@ -7,6 +7,7 @@ import {
     Cluster,
     Compatibility,
     ContainerImage,
+    ContainerDependencyCondition,
     FargateService,
     HealthCheck,
     LogDrivers,
@@ -86,11 +87,15 @@ export class EcsClusterStack extends Stack {
     private readonly VISITS_SERVICE = 'pet-clinic-visits-service';
     private readonly CUSTOMERS_SERVICE = 'pet-clinic-customers-service';
     private readonly VETS_SERVICE = 'pet-clinic-vets-service';
+    private readonly INSURANCE_SERVICE = 'pet-clinic-insurance-service';
+    private readonly BILLING_SERVICE = 'pet-clinic-billing-service';
     private DISCOVERY_SERVER_CW_CONFIG: MetricTransformationConfig;
     private CONFIG_SERVER_CW_CONFIG: MetricTransformationConfig;
     private VISITS_SERVICE_CW_CONFIG: MetricTransformationConfig;
     private VETS_SERVICE_CW_CONFIG: MetricTransformationConfig;
     private CUSTOMERS_SERVICE_CW_CONFIG: MetricTransformationConfig;
+    private INSURANCE_SERVICE_CW_CONFIG: MetricTransformationConfig;
+    private BILLING_SERVICE_CW_CONFIG: MetricTransformationConfig;
 
     constructor(scope: Construct, id: string, props: EcsClusterStackProps) {
         super(scope, id, props);
@@ -202,6 +207,8 @@ export class EcsClusterStack extends Stack {
                 this.CUSTOMERS_SERVICE_CW_CONFIG,
                 this.VISITS_SERVICE_CW_CONFIG,
                 this.VETS_SERVICE_CW_CONFIG,
+                this.BILLING_SERVICE_CW_CONFIG,
+                this.INSURANCE_SERVICE_CW_CONFIG
             ],
         };
 
@@ -216,7 +223,6 @@ export class EcsClusterStack extends Stack {
                 subnetType: SubnetType.PRIVATE_WITH_EGRESS,
             },
             assignPublicIp: false,
-            desiredCount: 1,
         });
 
         // Add Application Load Balancer target group
@@ -289,8 +295,6 @@ export class EcsClusterStack extends Stack {
     }
 
     runInsuranceService() {
-        const INSURANCE_SERVICE = 'pet-clinic-insurance-service';
-
         const healthCheck: HealthCheck = {
             command: ['CMD-SHELL', 'curl -f http://localhost:8000/insurances/ || exit 1'],
             interval: Duration.seconds(60),
@@ -303,7 +307,7 @@ export class EcsClusterStack extends Stack {
             port: 8000,
             image: 'python-petclinic-insurance-service',
             environmentArgs: {
-                INSURANCE_SERVICE_IP: `${INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                INSURANCE_SERVICE_IP: `${this.INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
                 DJANGO_SETTINGS_MODULE: 'pet_clinic_insurance_service.settings',
             },
             command: [
@@ -311,39 +315,37 @@ export class EcsClusterStack extends Stack {
                 '-c',
                 'python manage.py migrate && python manage.py loaddata initial_data.json && python manage.py runserver 0.0.0.0:8000 --noreload',
             ],
-            rules: [this.DISCOVERY_SERVER_CW_CONFIG],
+            rules: [this.DISCOVERY_SERVER_CW_CONFIG, this.CONFIG_SERVER_CW_CONFIG],
             healthCheck: healthCheck,
         };
 
-        const taskDefinition = this.createPythonTaskDefinition(INSURANCE_SERVICE, insuranceConfig);
+        const taskDefinition = this.createPythonTaskDefinition(this.INSURANCE_SERVICE, insuranceConfig);
 
         // Create ECS service
         this.createService({
-            serviceName: INSURANCE_SERVICE,
+            serviceName: this.INSURANCE_SERVICE,
             taskDefinition: taskDefinition,
         });
     }
 
     runBillingService() {
-        const BILLING_SERVICE = 'pet-clinic-billing-service';
-
         const billingConfig: ServiceTaskDefinitionConfig = {
             port: 8800,
             image: 'python-petclinic-billing-service',
             environmentArgs: {
                 REGION: this.region,
                 DJANGO_SETTINGS_MODULE: 'pet_clinic_billing_service.settings',
-                BILLING_SERVICE_IP: `${BILLING_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
+                BILLING_SERVICE_IP: `${this.BILLING_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}`,
             },
-            rules: [this.DISCOVERY_SERVER_CW_CONFIG],
+            rules: [this.DISCOVERY_SERVER_CW_CONFIG, this.CONFIG_SERVER_CW_CONFIG],
             command: ['sh', '-c', 'python manage.py migrate && python manage.py runserver 0.0.0.0:8800 --noreload'],
         };
 
-        const taskDefinition = this.createPythonTaskDefinition(BILLING_SERVICE, billingConfig);
+        const taskDefinition = this.createPythonTaskDefinition(this.BILLING_SERVICE, billingConfig);
 
         // Create ECS service
         this.createService({
-            serviceName: BILLING_SERVICE,
+            serviceName: this.BILLING_SERVICE,
             taskDefinition: taskDefinition,
         });
     }
@@ -477,6 +479,38 @@ export class EcsClusterStack extends Stack {
             ],
             action: 'replace',
         };
+
+        this.INSURANCE_SERVICE_CW_CONFIG = {
+            selectors: [
+                {
+                    dimension: 'RemoteService',
+                    match: `${this.INSURANCE_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}*`,
+                },
+            ],
+            replacements: [
+                {
+                    target_dimension: 'RemoteService',
+                    value: `${this.INSURANCE_SERVICE}`,
+                },
+            ],
+            action: 'replace',
+        };
+
+        this.BILLING_SERVICE_CW_CONFIG = {
+            selectors: [
+                {
+                    dimension: 'RemoteService',
+                    match: `${this.BILLING_SERVICE}-DNS.${this.serviceDiscoveryStack.namespace.namespaceName}*`,
+                },
+            ],
+            replacements: [
+                {
+                    target_dimension: 'RemoteService',
+                    value: `${this.BILLING_SERVICE}`,
+                },
+            ],
+            action: 'replace',
+        };
     }
 
     createJavaTaskDefinition(serviceName: string, config: ServiceTaskDefinitionConfig) {
@@ -555,7 +589,7 @@ export class EcsClusterStack extends Stack {
         });
 
         // Add CloudWatch agent container
-        taskDefinition.addContainer(`${serviceName}-cwagent-container`, {
+        const cwAgentContainer = taskDefinition.addContainer(`${serviceName}-cwagent-container`, {
             image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
@@ -580,6 +614,16 @@ export class EcsClusterStack extends Stack {
                 streamPrefix: 'ecs',
                 logGroup: cwAgentLogGroup,
             }),
+        });
+
+        mainContainer.addContainerDependencies({
+            container: initContainer,
+            condition: ContainerDependencyCondition.COMPLETE,
+        });
+
+        mainContainer.addContainerDependencies({
+            container: cwAgentContainer,
+            condition: ContainerDependencyCondition.START,
         });
 
         return taskDefinition;
@@ -674,7 +718,7 @@ export class EcsClusterStack extends Stack {
         });
 
         // Add CloudWatch agent container
-        taskDefinition.addContainer(`${serviceName}-cwagent-container`, {
+        const cwAgentContainer = taskDefinition.addContainer(`${serviceName}-cwagent-container`, {
             image: ContainerImage.fromRegistry('public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest'),
             memoryLimitMiB: 128,
             essential: true,
@@ -699,6 +743,16 @@ export class EcsClusterStack extends Stack {
                 streamPrefix: 'ecs',
                 logGroup: cwAgentLogGroup,
             }),
+        });
+
+        mainContainer.addContainerDependencies({
+            container: initContainer,
+            condition: ContainerDependencyCondition.COMPLETE,
+        });
+
+        mainContainer.addContainerDependencies({
+            container: cwAgentContainer,
+            condition: ContainerDependencyCondition.START,
         });
 
         return taskDefinition;
